@@ -52,3 +52,10 @@ That is also the honest limit: the tools are the thinking, not the integration.
 
 Source is provided as-is for personal and commercial use. The company names above are
 references to publicly documented products, not affiliations.
+
+## Buy / download
+
+- Capafy listing (9 installable skills, one folder each with SKILL.md): submitted for review 2026-11-20, US$39
+- Skill-pack ZIP: `micro-tools-9skills-capafy.zip` (37 files, 9 x SKILL.md)
+- Free live preview: https://8-321.github.io/micro-tools/
+
