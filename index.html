@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Micro-tools — 9 working tools rebuilt from AI startups</title>
+<meta name="description" content="Nine working browser tools modeled on the real product flows of YC-backed AI startups: message assistant, visa pack, group planner, career story, application kit, backtest lab, portfolio X-ray, trade brief, alert builder.">
+<link rel="stylesheet" href="assets/base.css">
+<style>
+.hub{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;margin-top:20px}
+.t{display:block;background:var(--panel);border-radius:var(--r);padding:16px 16px 14px;color:var(--tx);text-decoration:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 30px rgba(0,0,0,.32);transition:transform .16s,box-shadow .16s}
+.t:hover{transform:translateY(-2px);text-decoration:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 16px 40px rgba(0,0,0,.45)}
+.t .n{font:600 11px/1 var(--mono);color:var(--tx3);letter-spacing:.12em}
+.t h3{margin:10px 0 6px;font-size:16px;letter-spacing:-.01em}
+.t p{color:var(--tx2);font-size:12.5px;line-height:1.6;min-height:40px}
+.t .bench{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center;
+  font-size:11px;color:var(--tx3)}
+.t .bench b{color:var(--tx2);font-weight:600}
+.t .go{color:var(--a)}
+.hero{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;align-items:end}
+@media(max-width:900px){.hero{grid-template-columns:1fr}}
+.hero h1{font-size:34px;line-height:1.1;letter-spacing:-.03em;max-width:18ch}
+.hero p{color:var(--tx2);margin-top:10px;max-width:60ch}
+.stat{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--tx3)}
+.stat b{display:block;color:var(--tx);font-size:20px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <span class="tag"><i></i>9 tools · all local</span>
+    <span class="sp"></span>
+    <a href="#why">why these nine</a>
+    <a id="mailTop" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hero">
+    <div>
+      <h1>Nine tools, rebuilt from what AI startups actually sell.</h1>
+      <p>Each one is a working browser tool modeled on a live YC-backed product's real flow — not a mockup. Paste your own data, get a usable output, copy or export it. No signup, no upload, no API key.</p>
+    </div>
+    <div class="stat">
+      <div><b>9</b>tools</div>
+      <div><b>0</b>servers</div>
+      <div><b>0</b>uploads</div>
+      <div><b>3</b>exports each</div>
+    </div>
+  </header>
+
+  <div class="hub">
+    <a class="t" href="inbox/"><span class="n">01</span><h3>Inbox → Actions</h3><p>Paste a messy chat thread. Get tasks with due dates, questions that need a reply, and drafts you can send.</p><div class="bench"><span>benchmark <b>Caddy</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="visa/"><span class="n">02</span><h3>Visa Pack Builder</h3><p>Pick route and citizenship. Get the document checklist, timeline, fees and the reasons applications get refused.</p><div class="bench"><span>benchmark <b>Veeza AI</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="group/"><span class="n">03</span><h3>Group Plan Finder</h3><p>Paste the group chat. It reads who is free when, ranks the slots, and writes the invite + booking brief.</p><div class="bench"><span>benchmark <b>Anywhere / Alfi</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="career/"><span class="n">04</span><h3>Career Story Builder</h3><p>Ten questions, then a structured profile: pitches, proof, what stays private, and a warm-intro email.</p><div class="bench"><span>benchmark <b>Pluto</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="apply/"><span class="n">05</span><h3>Application Kit</h3><p>Paste a job description and your resume. Get the keyword gap, rewritten bullets, a cover letter and screening answers.</p><div class="bench"><span>benchmark <b>Tsenta</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="backtest/"><span class="n">06</span><h3>Backtest Lab</h3><p>Paste daily prices, choose a rule, see equity curve, CAGR, max drawdown, win rate versus buy-and-hold.</p><div class="bench"><span>benchmark <b>Scalar Field</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="portfolio/"><span class="n">07</span><h3>Portfolio X-Ray</h3><p>Holdings in, concentration and drift out — plus the exact rebalance trades to get back to your targets.</p><div class="bench"><span>benchmark <b>Volaren</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="tradebrief/"><span class="n">08</span><h3>Trade Brief</h3><p>One sentence of an idea plus entry, stop and target. Get position size, R multiple, payoff and a journal entry.</p><div class="bench"><span>benchmark <b>Conviction</b></span><span class="go">open →</span></div></a>
+    <a class="t" href="alert/"><span class="n">09</span><h3>Alert Forge</h3><p>Turn "tell me when X breaks Y on volume" into a Pine Script alert block, a plain-English rule and a confluence score.</p><div class="bench"><span>benchmark <b>Instinct</b></span><span class="go">open →</span></div></a>
+  </div>
+
+  <section id="why" style="margin-top:34px">
+    <div class="card pad">
+      <h2>Why these nine</h2>
+      <p class="note" style="max-width:88ch">They are the nine shapes that keep coming back in this batch: a message-first assistant, a paperwork pack, a group planner, a profile, an application kit, a backtest, a portfolio view, a trade brief and an alert. Each company solved it with data, model access or a broker connection. Take away the data and the broker, and what is left is still a useful tool — that is what these are: the part a normal person can run offline, today.</p>
+      <div class="hr"></div>
+      <p class="note">Every page is one HTML file plus two shared assets. No build step. Host it anywhere static, or hand it to a client as the starting point for the real thing.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Built by 8-321</span>
+    <a id="mailBottom" href="#" rel="nofollow">Need one of these wired into your product?</a>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+<script src="assets/base.js"></script>
+<script>
+(function () {
+  var user = ["3413", "7657", "21"].join("");
+  var host = ["qq", "com"].join(".");
+  var href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Micro-tools — custom build");
+  ["mailTop", "mailBottom"].forEach(function (id) {
+    var a = document.getElementById(id); if (a) a.href = href;
+  });
+})();
+</script>
+</body>
+</html>

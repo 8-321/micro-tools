@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Group Plan Finder — read the chat, pick the slot, write the invite</title>
+<meta name="description" content="Paste the group chat. It reads who is free when, ranks the slots, and writes the invite, the poll and the booking brief.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#4fd1b5}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>03 · benchmark: Anywhere / Alfi (text.ai)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Group Plan Finder</h1>
+    <p>Alfi exists because nobody wants to be the planner. This does the planning part: read the thread, find the slot that actually works, and write the message that closes it.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>The chat</h2>
+      <textarea id="src" spellcheck="false" style="min-height:230px"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="run">Find a slot</button>
+        <button class="btn ghost" id="sample">Load sample</button>
+      </div>
+      <div class="split" style="margin-top:12px">
+        <div><label class="f" for="dur">Hours</label><input type="number" id="dur" value="2" min="1" max="8"></div>
+        <div><label class="f" for="when">Window</label><select id="when"><option value="7">Next 7 days</option><option value="14" selected>Next 14 days</option><option value="21">Next 21 days</option></select></div>
+      </div>
+      <p class="note" style="margin-top:10px">Only "Name: message" lines are read. Anything it cannot parse is listed, not guessed.</p>
+    </section>
+
+    <section class="card pad">
+      <h2>The plan</h2>
+      <div id="slots"></div>
+      <div class="hr"></div>
+      <h3 style="margin-bottom:8px">Who said what</h3>
+      <div id="people"></div>
+      <div class="hr"></div>
+      <h3 style="margin-bottom:8px">Send this</h3>
+      <pre id="invite"></pre>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="copyInvite">Copy invite</button>
+        <button class="btn ghost sm" id="copyBrief">Copy booking brief</button>
+      </div>
+      <div class="hr"></div>
+      <h3 style="margin-bottom:8px">Booking brief</h3>
+      <pre id="brief"></pre>
+    </section>
+  </div>
+
+  <footer><span>No calendar or booking integration. It writes the messages; you press send.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+
+  var SAMPLE = [
+    "Maya: who's up for dinner next week?",
+    "Sam: I'm free Tue or Wed after 7",
+    "Priya: can't do Wed, I'm out of town. Thursday works",
+    "Leo: any day but Friday, and I'm vegetarian",
+    "Maya: budget around $40?",
+    "Sam: works for me. that ramen place on 5th?",
+    "Priya: I'm in for ramen. after 7 though, I finish at 6:30",
+    "Leo: maybe Thursday? I can do after 8",
+    "Maya: I'm flexible, just not Monday"
+  ].join("\n");
+
+  var DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  var NAMES = { sun: "Sunday", mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday" };
+
+  function dayTokens(body) {
+    var out = [], low = body.toLowerCase();
+    DOW.forEach(function (d) { if (new RegExp("\\b" + d + "(s|day|nesday|rsday|urday)?\\b").test(low)) out.push(d); });
+    if (/\bweekend/.test(low)) out.push("sat", "sun");
+    if (/\bweekday/.test(low) && !out.length) out.push("mon", "tue", "wed", "thu", "fri");
+    if (/\btomorrow\b/.test(low)) { var t = new Date(); t.setDate(t.getDate() + 1); out.push(DOW[t.getDay()]); }
+    if (/\btonight\b/.test(low)) out.push(DOW[new Date().getDay()]);
+    return out.filter(function (v, i, a) { return a.indexOf(v) === i; });
+  }
+
+  function timeFloor(body) {
+    var m = body.match(/\bafter\s+(\d{1,2})(?::(\d{2}))?\s*(pm|am)?/i);
+    if (m) { var h = +m[1]; if (m[3] && m[3].toLowerCase() === "pm" && h < 12) h += 12; if (!m[3] && h <= 11 && h >= 5) h += 12; return h * 60 + (+m[2] || 0); }
+    m = body.match(/\b(\d{1,2})(?::(\d{2}))?\s*(pm|am)\b/i);
+    if (m) { var h2 = +m[1]; if (m[3].toLowerCase() === "pm" && h2 < 12) h2 += 12; return h2 * 60 + (+m[2] || 0); }
+    if (/\blunch\b/i.test(body)) return 12 * 60 + 30;
+    if (/\bdinner\b/i.test(body)) return 19 * 60;
+    return null;
+  }
+
+  var ALLDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+  function parse(text) {
+    var people = {}, unknown = [];
+    text.split(/\n/).forEach(function (raw) {
+      var line = raw.trim(); if (!line) return;
+      var m = line.match(/^([A-Z][a-zA-Z]{1,14})\s*:\s*(.+)$/);
+      var who = m ? m[1] : null, body = m ? m[2] : line;
+      if (!who) { unknown.push(line); return; }
+      var p = people[who] = people[who] || { name: who, free: [], blocked: [], floor: null, notes: [] };
+      var flexible = /\b(any day|anytime|whenever|flexible|up to you|no preference)\b/i.test(body);
+      if (flexible) ALLDAYS.forEach(function (d) { if (p.free.indexOf(d) < 0) p.free.push(d); });
+      var norm = body.replace(/\b(any day|everything|all days?)\s+(but|except)\s+/i, "not ");
+      norm.split(/[,;.]|\bbut\b|\bexcept\b/i).forEach(function (cl) {
+        var days = dayTokens(cl);
+        if (!days.length) return;
+        var maybe = /\b(maybe|not sure|tbd)\b/i.test(cl) && !/\bnot sure if\b/i.test(cl);
+        var neg = !maybe && /\b(can'?t|cannot|won'?t|not free|busy|out of town|away|no good|unavailable|except|not)\b/i.test(cl);
+        var pos = /\b(free|works|i'?m in|count me in|can do|available|good|yes|in)\b/i.test(cl);
+        days.forEach(function (d) {
+          if (neg) {
+            if (p.blocked.indexOf(d) < 0) p.blocked.push(d);
+            var fi = p.free.indexOf(d); if (fi > -1) p.free.splice(fi, 1);
+          } else if (pos || maybe) {
+            if (p.free.indexOf(d) < 0) p.free.push(d);
+            var bi = p.blocked.indexOf(d); if (bi > -1) p.blocked.splice(bi, 1);
+          }
+        });
+      });
+      var fl = timeFloor(body); if (fl != null) p.floor = Math.max(p.floor || 0, fl);
+      if (/\bvegetarian|vegan|halal|gluten|allerg/i.test(body)) p.notes.push("diet: " + ((body.match(/\b(vegetarian|vegan|halal|gluten[- ]free|allerg\w*)\b/i) || [])[1] || "noted"));
+      if (/\bout of town|away|travel/i.test(body)) p.notes.push("away part of the week");
+      p.notes = p.notes.filter(function (v, i, a) { return a.indexOf(v) === i; });
+    });
+    return { people: people, unknown: unknown };
+  }
+
+  function candidates(parsed, windowDays) {
+    var res = [], today = new Date(); today.setHours(0, 0, 0, 0);
+    var names = Object.keys(parsed.people);
+    for (var i = 1; i <= windowDays; i++) {
+      var d = new Date(today); d.setDate(d.getDate() + i);
+      var dow = DOW[d.getDay()];
+      var free = [], blocked = [], unknownP = [];
+      names.forEach(function (n) {
+        var p = parsed.people[n];
+        if (p.blocked.indexOf(dow) > -1) blocked.push(n);
+        else if (p.free.indexOf(dow) > -1) free.push(n);
+        else unknownP.push(n);
+      });
+      var score = free.length * 10 + unknownP.length * 6;
+      if (!blocked.length) score += 4;
+      res.push({ date: d, dow: dow, free: free, blocked: blocked, unknown: unknownP, score: score });
+    }
+    res.sort(function (a, b) { return b.score - a.score || a.date - b.date; });
+    return res;
+  }
+
+  function fmtDate(d) { return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); }
+  function fmtTime(mins) { var h = Math.floor(mins / 60), m = mins % 60; var ap = h >= 12 ? "pm" : "am"; var hh = h % 12 || 12; return hh + (m ? ":" + String(m).padStart(2, "0") : "") + ap; }
+
+  var state = { parsed: null, top: null, brief: "", invite: "" };
+
+  function run() {
+    var parsed = parse(T.$("#src").value);
+    var windowDays = +T.$("#when").value;
+    var cands = candidates(parsed, windowDays);
+    var top = cands.slice(0, 3);
+
+    var maxFloor = 19 * 60;
+    Object.keys(parsed.people).forEach(function (n) { if (parsed.people[n].floor) maxFloor = Math.max(maxFloor, parsed.people[n].floor); });
+    maxFloor = Math.ceil(maxFloor / 30) * 30;
+    state.parsed = parsed; state.top = top;
+
+    T.$("#slots").innerHTML = top.map(function (c, i) {
+      var cls = i === 0 ? "good" : "warn";
+      return '<div class="check" style="align-items:center"><span style="min-width:26px;font:600 11px var(--mono);color:var(--tx3)">0' + (i + 1) + '</span><span style="flex:1"><b>' + fmtDate(c.date) + ' · ' + fmtTime(maxFloor) + '</b><small>' +
+        (c.free.length ? "free: " + c.free.join(", ") : "no explicit yes") +
+        (c.blocked.length ? " · can't: " + c.blocked.join(", ") : "") +
+        (c.unknown.length ? " · no answer yet: " + c.unknown.join(", ") : "") + '</small></span><span class="pill ' + cls + '">' + c.score + ' pts</span></div>';
+    }).join("");
+
+    T.$("#people").innerHTML = '<table><thead><tr><th>Person</th><th>Free</th><th>Blocked</th><th>Not before</th></tr></thead><tbody>' +
+      Object.keys(parsed.people).map(function (n) {
+        var p = parsed.people[n];
+        return '<tr><td>' + T.esc(n) + '</td><td>' + (p.free.map(function (d) { return NAMES[d]; }).join(", ") || "—") + '</td><td>' + (p.blocked.map(function (d) { return NAMES[d]; }).join(", ") || "—") + '</td><td>' + (p.floor ? fmtTime(p.floor) : "—") + '</td></tr>';
+      }).join("") + '</tbody></table>' +
+      (parsed.unknown.length ? '<p class="note" style="margin-top:8px">Ignored lines (no "Name:" prefix): ' + parsed.unknown.length + '</p>' : "");
+
+    if (!top.length) {
+      T.$("#invite").textContent = "Not enough in the chat to propose a slot.";
+      T.$("#brief").textContent = "";
+      return;
+    }
+    var best = top[0];
+    var all = Object.keys(parsed.people);
+    var size = all.length;
+    var budget = (T.$("#src").value.match(/[$£€]\s?\d{1,4}/) || [])[0];
+    var CUISINE = /\b(ramen|pizza|sushi|tacos|thai|korean|bbq|brunch|coffee|bar|steak|hotpot|noodles|dim sum)\b[^.,!?]*/i;
+    var venue = (T.$("#src").value.match(CUISINE) || [])[0] || "";
+
+    state.invite = "Plan: " + fmtDate(best.date) + " at " + fmtTime(maxFloor) + ".\n" +
+      "In: " + (best.free.join(", ") || "nobody has confirmed yet") + (best.unknown.length ? " · waiting on: " + best.unknown.join(", ") : "") + (best.blocked.length ? "\nOut: " + best.blocked.join(", ") : "") + "\n\n" +
+      "Reply with ✅ if " + fmtDate(best.date) + " " + fmtTime(maxFloor) + " works, or 🕗 for the next best (" + fmtDate(top[1].date) + ")." +
+      (venue ? "\nVenue idea: " + venue.trim() + "." : "") +
+      (budget ? " Budget: ~" + budget + " per head." : "");
+
+    state.brief = "Booking brief\n" +
+      "Date: " + fmtDate(best.date) + "\nTime: " + fmtTime(maxFloor) + "\nParty: " + size + (best.unknown.length ? " (tentative, " + best.unknown.length + " unconfirmed)" : "") + "\n" +
+      (budget ? "Budget: ~" + budget + " per head\n" : "") +
+      (venue ? "Cuisine: " + venue.trim() + "\n" : "") +
+      "Dietary: " + (all.map(function (n) { return parsed.people[n].notes.length ? n + " (" + parsed.people[n].notes.join("; ") + ")" : null; }).filter(Boolean).join("; ") || "none declared") + "\n" +
+      "Ask for: table for " + size + ", " + (best.unknown.length ? "hold 15 min for late confirmations, " : "") + "quiet enough to talk.\n\n" +
+      "Reminders: T-2 days confirm headcount · T-1 day reconfirm the table · day of send the address.";
+
+    T.$("#invite").textContent = state.invite;
+    T.$("#brief").textContent = state.brief;
+  }
+
+  T.$("#run").addEventListener("click", run);
+  T.$("#sample").addEventListener("click", function () { T.$("#src").value = SAMPLE; run(); });
+  T.$("#when").addEventListener("change", run);
+  T.$("#dur").addEventListener("change", run);
+  T.$("#copyInvite").addEventListener("click", function (e) { T.copy(state.invite, e.currentTarget); });
+  T.$("#copyBrief").addEventListener("click", function (e) { T.copy(state.brief, e.currentTarget); });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Group Plan Finder");
+
+  T.$("#src").value = SAMPLE;
+  run();
+})();
+</script>
+</body>
+</html>

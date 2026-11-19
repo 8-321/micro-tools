@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trade Brief — size the position, write the invalidation before you click buy</title>
+<meta name="description" content="One sentence of an idea plus entry, stop and target. Get position size, risk in dollars, R multiple, payoff, breakeven and a journal entry.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#f472b6}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>08 · benchmark: Conviction (convictiontrade.ai)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Trade Brief</h1>
+    <p>Conviction turns "I think chips are on the rise" into an agent that trades it. Before any agent gets your money, the idea has to survive four numbers: entry, stop, target, size.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>The idea</h2>
+      <label class="f" for="idea">In one sentence</label>
+      <textarea id="idea" style="min-height:70px" placeholder="Semis break out on AI capex guidance; I want to be long into earnings."></textarea>
+      <div class="split" style="margin-top:10px">
+        <div><label class="f" for="ticker">Ticker</label><input type="text" id="ticker" placeholder="SMH"></div>
+        <div><label class="f" for="dir">Direction</label><select id="dir"><option value="long">Long</option><option value="short">Short</option></select></div>
+      </div>
+      <div class="split" style="margin-top:10px">
+        <div><label class="f" for="entry">Entry</label><input type="number" id="entry" value="245.00" step="0.01"></div>
+        <div><label class="f" for="stop">Stop</label><input type="number" id="stop" value="232.00" step="0.01"></div>
+        <div><label class="f" for="target">Target</label><input type="number" id="target" value="280.00" step="0.01"></div>
+      </div>
+      <div class="split" style="margin-top:10px">
+        <div><label class="f" for="acct">Account</label><input type="number" id="acct" value="25000" step="100"></div>
+        <div><label class="f" for="risk">Risk per trade %</label><input type="number" id="risk" value="1" step="0.25" min="0.1" max="10"></div>
+        <div><label class="f" for="lev">Leverage</label><input type="number" id="lev" value="1" step="1" min="1" max="20"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="run">Build brief</button>
+        <button class="btn ghost" id="sample">Load sample</button>
+      </div>
+      <p class="note" style="margin-top:10px">Sizing is the whole tool. If the stop is 5% away, the position is small — that is the point, not a bug.</p>
+    </section>
+
+    <section class="card pad">
+      <h2>Brief</h2>
+      <div id="kpis" class="kpis"></div>
+      <div class="hr"></div>
+      <div class="chips" style="margin-bottom:10px">
+        <button class="chip" data-tab="brief" aria-pressed="true">Brief</button>
+        <button class="chip" data-tab="journal" aria-pressed="false">Journal</button>
+        <button class="chip" data-tab="premortem" aria-pressed="false">Pre-mortem</button>
+      </div>
+      <pre id="pane" style="max-height:360px"></pre>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="copy">Copy</button>
+        <button class="btn ghost sm" id="dl">Download</button>
+      </div>
+    </section>
+  </div>
+
+  <footer><span>Arithmetic, not advice. Leverage maths ignores maintenance margin, funding and gaps.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+
+  var SAMPLE = { idea: "Semis break out on AI capex guidance; I want to be long into earnings, out if the 20-day fails.", ticker: "SMH", entry: 245, stop: 232, target: 280 };
+  var tab = "brief", out = {};
+
+  function build() {
+    var d = {
+      idea: T.$("#idea").value.trim(),
+      ticker: (T.$("#ticker").value || "—").toUpperCase(),
+      dir: T.$("#dir").value,
+      entry: +T.$("#entry").value, stop: +T.$("#stop").value, target: +T.$("#target").value,
+      acct: +T.$("#acct").value, riskPct: +T.$("#risk").value, lev: Math.max(1, +T.$("#lev").value || 1)
+    };
+    if (!(d.entry > 0) || !(d.stop > 0) || !(d.target > 0) || !(d.acct > 0)) { T.toast("Fill entry, stop, target, account"); return; }
+    var dirOk = d.dir === "long" ? (d.stop < d.entry && d.target > d.entry) : (d.stop > d.entry && d.target < d.entry);
+    var perShare = Math.abs(d.entry - d.stop);
+    var reward = Math.abs(d.target - d.entry);
+    var riskBudget = d.acct * d.riskPct / 100;
+    var shares = perShare ? Math.floor(riskBudget / perShare) : 0;
+    var notional = shares * d.entry;
+    var margin = notional / d.lev;
+    var risk = shares * perShare;
+    var rr = perShare ? reward / perShare : 0;
+    var liq = d.dir === "long" ? d.entry * (1 - 1 / d.lev + 0.005) : d.entry * (1 + 1 / d.lev - 0.005);
+    var feeRoundTrip = notional * 0.0005;
+    var beMove = notional ? feeRoundTrip / notional : 0;
+
+    out = d;
+    out.perShare = perShare; out.shares = shares; out.notional = notional; out.margin = margin;
+    out.risk = risk; out.rr = rr; out.dirOk = dirOk; out.liq = liq; out.reward = shares * reward;
+
+    T.$("#kpis").innerHTML =
+      '<div class="kpi ' + (dirOk ? "good" : "bad") + '"><span>size</span><b>' + shares + ' sh</b><small class="note">' + T.money(margin) + ' margin @' + d.lev + 'x</small></div>' +
+      '<div class="kpi"><span>risk</span><b>' + T.money(risk) + '</b><small class="note">' + T.pct(risk / d.acct) + ' of account</small></div>' +
+      '<div class="kpi"><span>R multiple</span><b>' + rr.toFixed(2) + 'R</b><small class="note">' + T.money(out.reward) + ' if target</small></div>' +
+      '<div class="kpi"><span>stop distance</span><b>' + T.pct(perShare / d.entry) + '</b><small class="note">' + T.money(perShare, "") + ' / share</small></div>';
+
+    var brief = [
+      (out.ticker || "—") + " · " + d.dir.toUpperCase() + " · " + (dirOk ? "levels consistent" : "LEVELS DO NOT MATCH DIRECTION"),
+      "",
+      "Idea: " + (d.idea || "[write the sentence]"),
+      "",
+      "Entry " + T.money(d.entry) + " · Stop " + T.money(d.stop) + " · Target " + T.money(d.target),
+      "Size " + shares + " shares (" + T.money(notional) + " notional, " + T.money(margin) + " margin at " + d.lev + "x)",
+      "Risk " + T.money(risk) + " = " + d.riskPct + "% of " + T.money(d.acct),
+      "Payoff " + rr.toFixed(2) + "R — you need to be right " + Math.max(0, Math.round(100 / (1 + rr))) + "% of the time to break even at this ratio.",
+      "",
+      "Invalidation — exit before thinking about it:",
+      "1. Close beyond " + T.money(d.stop) + " (" + T.pct(perShare / d.entry) + " against me).",
+      "2. " + (d.idea ? "The reason in the sentence above stops being true." : "The thesis sentence stops being true."),
+      "3. Time stop: if nothing happens in 10 sessions, the setup is stale — cut it.",
+      "",
+      d.lev > 1 ? "Leverage: liquidation around " + T.money(liq) + " (ignores maintenance margin and gaps). Funding is a cost, not a detail." : "No leverage. The stop is the only thing that can hurt you.",
+      "Breakeven move after fees: " + T.pct(beMove, 3) + " (~" + T.money(feeRoundTrip) + " round trip)."
+    ].join("\n");
+
+    var journal = [
+      new Date().toISOString().slice(0, 10) + " | " + out.ticker + " | " + d.dir,
+      "setup: " + (d.idea || ""),
+      "entry " + d.entry + " stop " + d.stop + " target " + d.target + " size " + shares + " risk " + risk.toFixed(2) + " (" + rr.toFixed(2) + "R)",
+      "exit: ______  pnl: ______  R: ______",
+      "what I saw: ______",
+      "what I got wrong: ______"
+    ].join("\n");
+
+    var premortem = [
+      "Pre-mortem — it is three months from now and this trade lost money. Why?",
+      "",
+      "1. The catalyst did not happen on schedule, and I held anyway because the story was still good.",
+      "2. I moved the stop during the trade. The loss is " + T.money(risk * 2.4) + " instead of " + T.money(risk) + ".",
+      "3. Correlated exposure: this is not one trade, it is the fourth position expressing the same macro view.",
+      "4. Size crept up after two wins. Two losses in a row now costs " + T.pct(risk * 2 / d.acct) + " of the account.",
+      "",
+      "If any of these feels likely, the size is wrong — halve it before entry, not after."
+    ].join("\n");
+
+    out.text = { brief: brief, journal: journal, premortem: premortem };
+    show();
+  }
+
+  function show() {
+    if (!out.text) { T.$("#pane").textContent = ""; return; }
+    T.$("#pane").textContent = out.text[tab];
+  }
+
+  T.$$(".chip[data-tab]").forEach(function (c) {
+    c.addEventListener("click", function () {
+      T.$$(".chip[data-tab]").forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
+      c.setAttribute("aria-pressed", "true"); tab = c.dataset.tab; show();
+    });
+  });
+  T.$("#run").addEventListener("click", build);
+  T.$("#sample").addEventListener("click", function () {
+    T.$("#idea").value = SAMPLE.idea; T.$("#ticker").value = SAMPLE.ticker;
+    T.$("#entry").value = SAMPLE.entry; T.$("#stop").value = SAMPLE.stop; T.$("#target").value = SAMPLE.target;
+    build();
+  });
+  T.$("#copy").addEventListener("click", function (e) { T.copy(T.$("#pane").textContent, e.currentTarget); });
+  T.$("#dl").addEventListener("click", function () { T.download("trade-" + (out.ticker || "brief") + ".md", T.$("#pane").textContent, "text/markdown"); });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Trade Brief");
+
+  T.$("#idea").value = SAMPLE.idea; T.$("#ticker").value = SAMPLE.ticker;
+  build();
+})();
+</script>
+</body>
+</html>

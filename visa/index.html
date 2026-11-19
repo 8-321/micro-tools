@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visa Pack Builder — checklist, timeline and fees for Schengen, UK and US</title>
+<meta name="description" content="Pick a route and citizenship, get the exact document checklist, lead times, government fees and the reasons applications get refused. Progress saves locally.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#e2624a}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>02 · benchmark: Veeza AI (veeza.ai)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Visa Pack Builder</h1>
+    <p>Veeza turns "I want to go to France" into a prepared file. The expensive part is knowing exactly which paper each consulate wants. Pick the route and your situation and this writes the pack.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>Your trip</h2>
+      <div class="stack">
+        <div><label class="f" for="route">Destination</label><select id="route">
+          <option value="fr">France — Schengen short stay</option>
+          <option value="de">Germany — Schengen short stay</option>
+          <option value="nl">Netherlands — Schengen short stay</option>
+          <option value="hr">Croatia — Schengen short stay</option>
+          <option value="uk">United Kingdom — Standard Visitor</option>
+          <option value="us">United States — B1/B2 visitor</option>
+        </select></div>
+        <div class="split">
+          <div><label class="f" for="passport">Passport</label><select id="passport">
+            <option>China</option><option>India</option><option>Nigeria</option><option>Philippines</option>
+            <option>Indonesia</option><option>Vietnam</option><option>Turkey</option><option>Brazil</option>
+            <option>Mexico</option><option>South Africa</option><option>Pakistan</option><option>Other</option>
+          </select></div>
+          <div><label class="f" for="purpose">Purpose</label><select id="purpose">
+            <option value="tourism">Tourism</option><option value="business">Business</option><option value="family">Visiting family</option>
+          </select></div>
+        </div>
+        <div class="split">
+          <div><label class="f" for="job">Employment</label><select id="job">
+            <option value="employed">Employed</option><option value="self">Self-employed</option>
+            <option value="student">Student</option><option value="retired">Retired</option><option value="none">Not employed</option>
+          </select></div>
+          <div><label class="f" for="days">Trip length (days)</label><input type="number" id="days" value="8" min="1" max="90"></div>
+        </div>
+        <div class="split">
+          <div><label class="f" for="first">First time on this route?</label><select id="first"><option value="yes">Yes</option><option value="no">No</option></select></div>
+          <div><label class="f" for="refused">Previously refused?</label><select id="refused"><option value="no">No</option><option value="yes">Yes</option></select></div>
+        </div>
+        <div><label class="f" for="with">Travelling with</label><select id="with">
+          <option value="solo">Solo</option><option value="partner">Partner / spouse</option><option value="family">Family with children</option><option value="group">Group</option>
+        </select></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn ghost sm" id="reset">Reset ticks</button>
+        <button class="btn ghost sm" id="print">Print</button>
+      </div>
+      <p class="note" style="margin-top:10px">Guidance only. Consulates change rules without notice — check the official page linked on your appointment letter before you pay anything.</p>
+    </section>
+
+    <section class="card pad">
+      <h2>Your pack</h2>
+      <div id="head"></div>
+      <div class="hr"></div>
+      <div id="meta" class="kpis" style="margin-bottom:14px"></div>
+      <div id="list" class="checks"></div>
+      <div class="hr"></div>
+      <div id="risk"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn ghost sm" id="copy">Copy checklist</button>
+        <button class="btn ghost sm" id="dl">Download .md</button>
+      </div>
+    </section>
+  </div>
+
+  <footer><span>No application is submitted here. This builds the file; you still book the appointment.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+
+  var ROUTES = {
+    fr: { country: "France", scheme: "Schengen short stay (type C)", visa: "Schengen visa — France-Visas portal, then TLScontact / VFS appointment",
+      fee: 90, service: 35, ins: 45, decision: "15 calendar days (up to 45)", book: "Book 3–6 weeks ahead. Earliest: 6 months before travel.",
+      photo: "35×45 mm, white background, taken in the last 6 months, no glasses.",
+      insurance: "Travel medical insurance covering the whole Schengen area, minimum €30,000.",
+      bank: "3–6 months of statements. Rule of thumb: €75 per day of stay, plus a buffer. Sudden large deposits get questioned.",
+      reasons: ["Itinerary that does not match the hotel or flight dates", "Insurance that misses one day or does not cover Schengen", "Bank statement printed the same week with an unexplained top-up", "No proof of ties to home: job, property, family"] },
+    de: { country: "Germany", scheme: "Schengen short stay (type C)", visa: "Schengen visa — German mission, appointment via the consulate or VFS",
+      fee: 90, service: 35, ins: 45, decision: "15 calendar days (up to 45)", book: "Book 4–8 weeks ahead in peak season. Earliest: 6 months before travel.",
+      photo: "35×45 mm, biometric, white background, no head covering except religious.",
+      insurance: "Schengen-wide medical cover, minimum €30,000, valid for every day of the trip.",
+      bank: "3 months of statements plus payslips. Germany looks closely at whether the trip cost is plausible for your income.",
+      reasons: ["Declared purpose does not match the documents", "Missing proof of accommodation for every night", "Travel dates longer than the leave your employer confirms"] },
+    nl: { country: "Netherlands", scheme: "Schengen short stay (type C)", visa: "Schengen visa — VFS Global appointment, application via the Dutch embassy",
+      fee: 90, service: 35, ins: 45, decision: "15 calendar days", book: "Book 3–6 weeks ahead; summer slots fill first.",
+      photo: "35×45 mm, colour, white background, full face visible.",
+      insurance: "Schengen-wide cover, minimum €30,000, including repatriation.",
+      bank: "3 months of statements; sponsor letter plus their statements if someone else pays.",
+      reasons: ["No day-by-day itinerary", "Bank balance below the cost of the trip", "Applying at the wrong consulate (main destination rule)"] },
+    hr: { country: "Croatia", scheme: "Schengen short stay (type C)", visa: "Schengen visa — VFS Global, Croatian embassy",
+      fee: 90, service: 35, ins: 45, decision: "15 calendar days", book: "Book 3–6 weeks ahead. Summer (June–August) is the bottleneck.",
+      photo: "35×45 mm, white background, recent.",
+      insurance: "Schengen-wide cover, minimum €30,000.",
+      bank: "3 months of statements. Croatia is strict about the accommodation booking matching every night.",
+      reasons: ["Accommodation missing for one or more nights", "Insurance starting after arrival", "Flight reservation that is already cancelled"] },
+    uk: { country: "United Kingdom", scheme: "Standard Visitor visa (6 months)", visa: "UKVI online form, then biometrics at a VFS / TLScontact centre",
+      fee: 127, service: 0, ins: 0, decision: "Typically 3 weeks, up to 8", book: "Apply up to 3 months before travel. Biometrics within 2 weeks of applying.",
+      photo: "Digital photo at the biometrics appointment; no printed photo needed.",
+      insurance: "Not required by UKVI, but medical treatment is not free — get cover anyway.",
+      bank: "6 months of statements, payslips, and a clear story of where the money came from. UKVI reads bank statements closely.",
+      reasons: ["Money that appeared recently without a paper trail", "No evidence of ties or of a job to return to", "Trip cost that does not match declared income", "Sponsor documents without proof of relationship"] },
+    us: { country: "United States", scheme: "B1/B2 visitor visa", visa: "DS-160, fee receipt, then interview at the embassy or consulate",
+      fee: 185, service: 0, ins: 0, decision: "Same day at interview, passport back in 1–2 weeks", book: "Interview slots can be months out — book as soon as the DS-160 is submitted.",
+      photo: "2×2 in (51×51 mm), white background, uploaded to the DS-160.",
+      insurance: "Not required for the visa; US medical costs are the reason to buy it anyway.",
+      bank: "Bring what proves you can pay for the trip and that you will come back: job letter, property, family.",
+      reasons: ["Cannot explain what you will do and where you will stay", "Weak ties to home country (the 214(b) refusal)", "Answers at the interview that contradict the DS-160"] }
+  };
+
+  var BASE = [
+    ["passport", "Passport", "Valid at least 3 months beyond your return date (6 months for the US), with 2 blank pages."],
+    ["passportcopy", "Passport copy", "Photo page plus every page that has a stamp or visa."],
+    ["photo", "Photo", ""],
+    ["form", "Application form", ""],
+    ["appointment", "Appointment confirmation", "Bring the printed confirmation and the receipt."],
+    ["flights", "Flight reservation", "Reservation, not a paid ticket. Dates must match the rest of the file."],
+    ["hotel", "Accommodation", "Every night covered. Booking.com free-cancellation reservations are accepted."],
+    ["itinerary", "Day-by-day itinerary", "City, dates, where you sleep, what you are doing. One page is enough."],
+    ["bank", "Bank statements", ""],
+    ["job", "Proof of employment", "Letter on letterhead with role, salary, leave dates, and a phone number they can call."],
+    ["ties", "Proof of ties at home", "Property, family, a lease, a business, a return flight. This is what stops the refusal."]
+  ];
+
+  function items(route, st) {
+    var r = ROUTES[route], list = [];
+    BASE.forEach(function (b) {
+      var note = b[2];
+      if (b[0] === "photo") note = r.photo;
+      if (b[0] === "form") note = route === "us" ? "DS-160 confirmation page with the barcode." : route === "uk" ? "UKVI application (online) plus the document checklist it generates." : "Schengen application form, signed, one per traveller.";
+      if (b[0] === "bank") note = r.bank;
+      if (b[0] === "flights") note = route === "us" ? "Not required for the interview, but know your arrival city and hotel address." : note;
+      list.push({ id: b[0], label: b[1], note: note, req: true });
+    });
+    if (route !== "us") list.splice(7, 0, { id: "insurance", label: "Travel medical insurance", note: r.insurance, req: true });
+    else list.splice(7, 0, { id: "insurance", label: "Travel medical insurance", note: r.insurance, req: false });
+
+    if (st.job === "self") list.push({ id: "biz", label: "Business documents", note: "Business licence, 6–12 months of business bank statements, latest tax return, and a letter from your accountant if you have one.", req: true });
+    if (st.job === "employed") list.push({ id: "payslip", label: "Payslips", note: "Last 3 months, matching the salary in the employment letter.", req: true });
+    if (st.job === "student") list.push({ id: "school", label: "Proof of enrolment", note: "Enrolment letter with the holiday dates, plus a sponsor letter and the sponsor's bank statements.", req: true });
+    if (st.job === "retired") list.push({ id: "pension", label: "Pension statement", note: "Last 3 months, plus any savings or property income you rely on.", req: true });
+    if (st.job === "none") list.push({ id: "sponsor", label: "Sponsor letter", note: "Who is paying, their relationship to you, their bank statements and ID. Unsponsored applications without ties are the most refused.", req: true });
+    if (st.purpose === "business") list.push({ id: "invite", label: "Business invitation", note: "Letter from the company you are visiting: dates, purpose, who pays, and their contact details.", req: true });
+    if (st.purpose === "family") list.push({ id: "family", label: "Proof of relationship", note: "Birth or marriage certificate, plus the host's residence permit or ID and an invitation letter.", req: true });
+    if (st.first === "yes") list.push({ id: "first", label: "First-traveller cover letter", note: "One page: who you are, why this trip, who pays, and what brings you back. First applications are read more sceptically.", req: false });
+    if (st.refused === "yes") list.push({ id: "refusal", label: "Previous refusal + explanation", note: "Include the refusal letter and a short paragraph on what changed since. Hiding a refusal is worse than having one.", req: true });
+    if (st.with === "family") list.push({ id: "minors", label: "Children's documents", note: "Birth certificates, and a consent letter signed by the other parent if they are not travelling.", req: true });
+    if (st.with === "partner") list.push({ id: "partner", label: "Partner's documents", note: "Marriage or partnership certificate, and their passport if you are applying together.", req: false });
+    if (st.with === "group") list.push({ id: "group", label: "Group list", note: "Name, passport number and dates for every traveller, plus who is the group leader.", req: false });
+    if (st.days > 21 && route !== "us") list.push({ id: "long", label: "Explanation for a long stay", note: "Over three weeks on a short-stay visa invites questions about work. Add a paragraph on funds and leave approval.", req: false });
+    return list;
+  }
+
+  var st = { route: "fr", passport: "China", purpose: "tourism", job: "employed", days: 8, first: "yes", refused: "no", with: "solo" };
+  var ticks = T.store.get("visa.ticks", {});
+
+  function read() {
+    st.route = T.$("#route").value; st.passport = T.$("#passport").value;
+    st.purpose = T.$("#purpose").value; st.job = T.$("#job").value;
+    st.days = Math.max(1, +T.$("#days").value || 8);
+    st.first = T.$("#first").value; st.refused = T.$("#refused").value; st.with = T.$("#with").value;
+  }
+
+  function key(id) { return st.route + ":" + id; }
+
+  function render() {
+    read();
+    var r = ROUTES[st.route];
+    var list = items(st.route, st);
+    var done = list.filter(function (i) { return ticks[key(i.id)]; }).length;
+    var required = list.filter(function (i) { return i.req; });
+    var reqDone = required.filter(function (i) { return ticks[key(i.id)]; }).length;
+
+    T.$("#head").innerHTML =
+      '<h3>' + T.esc(r.country) + ' — ' + T.esc(r.scheme) + '</h3>' +
+      '<p class="note" style="margin-top:6px">' + T.esc(r.visa) + '</p>' +
+      '<div class="note" style="margin-top:8px">' + T.esc(r.book) + ' · Decision: ' + T.esc(r.decision) + '</div>';
+
+    var feeTotal = r.fee + r.service + (st.days ? r.ins : 0);
+    T.$("#meta").innerHTML =
+      '<div class="kpi"><span>government fee</span><b>' + T.money(r.fee, "€").replace("€", st.route === "uk" ? "£" : st.route === "us" ? "$" : "€") + '</b></div>' +
+      '<div class="kpi"><span>service / insurance</span><b>' + T.num(r.service + r.ins) + '</b></div>' +
+      '<div class="kpi"><span>budget to show</span><b>' + (st.route === "us" ? "$" : st.route === "uk" ? "£" : "€") + T.num(st.days * (st.route === "us" ? 120 : st.route === "uk" ? 110 : 75)) + '</b></div>' +
+      '<div class="kpi ' + (reqDone === required.length ? "good" : "warn") + '"><span>required done</span><b>' + reqDone + "/" + required.length + '</b></div>';
+
+    T.$("#list").innerHTML = list.map(function (i) {
+      var on = ticks[key(i.id)] ? " checked" : "";
+      return '<label class="check"><input type="checkbox" data-id="' + i.id + '"' + on + '><span><b>' + T.esc(i.label) + '</b>' + (i.req ? ' <span class="pill">required</span>' : ' <span class="pill">if it applies</span>') + '<small>' + T.esc(i.note) + '</small></span></label>';
+    }).join("");
+
+    T.$("#risk").innerHTML = '<h3 style="margin-bottom:8px">Why this route gets refused</h3><ul style="padding-left:18px;color:var(--tx2);font-size:12.5px;line-height:1.8">' +
+      r.reasons.map(function (x) { return "<li>" + T.esc(x) + "</li>"; }).join("") + '</ul>' +
+      '<p class="note" style="margin-top:8px">' + (st.refused === "yes" ? "You declared a previous refusal — attach the letter and one paragraph on what changed. Do not leave it out." : "Never hide a previous refusal. Consulates share records.") + '</p>';
+
+    T.$$("#list input").forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        ticks[key(cb.dataset.id)] = cb.checked;
+        T.store.set("visa.ticks", ticks); render();
+      });
+    });
+  }
+
+  function markdown() {
+    var r = ROUTES[st.route];
+    var list = items(st.route, st);
+    var out = ["# Visa pack — " + r.country, "", r.scheme, "", "Appointment: " + r.visa, "Timing: " + r.book, "Decision: " + r.decision, "", "## Checklist"];
+    list.forEach(function (i) { out.push("- [" + (ticks[key(i.id)] ? "x" : " ") + "] " + i.label + (i.req ? " (required)" : "") + " — " + i.note); });
+    out.push("", "## Why applications get refused");
+    r.reasons.forEach(function (x) { out.push("- " + x); });
+    out.push("", "Budget to show: ~" + (st.days * (st.route === "us" ? 120 : st.route === "uk" ? 110 : 75)) + " for " + st.days + " days.");
+    return out.join("\n");
+  }
+
+  ["route", "passport", "purpose", "job", "days", "first", "refused", "with"].forEach(function (id) {
+    T.$("#" + id).addEventListener("change", render);
+    T.$("#" + id).addEventListener("input", render);
+  });
+  T.$("#reset").addEventListener("click", function () { ticks = {}; T.store.set("visa.ticks", ticks); render(); T.toast("Ticks cleared"); });
+  T.$("#print").addEventListener("click", function () { window.print(); });
+  T.$("#copy").addEventListener("click", function (e) { T.copy(markdown(), e.currentTarget); });
+  T.$("#dl").addEventListener("click", function () { T.download("visa-pack-" + st.route + ".md", markdown(), "text/markdown"); });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Visa Pack Builder");
+  render();
+})();
+</script>
+</body>
+</html>

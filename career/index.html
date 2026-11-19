@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Career Story Builder — the 10-minute profile an agent can read</title>
+<meta name="description" content="Answer ten questions and get a structured career profile: three pitches, proof, privacy switches, a warm-intro email and machine-readable JSON.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#d8a35a}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>04 · benchmark: Pluto (talentpluto.com)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Career Story Builder</h1>
+    <p>Pluto does a ten-minute call, then turns your story into something other people — and other agents — can actually understand. Same idea, no phone call: answer, review, export.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>The ten questions</h2>
+      <div id="form" class="stack"></div>
+      <div class="hr"></div>
+      <label class="f">Keep private (never leaves this profile)</label>
+      <div class="chips" id="privacy"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="build">Build profile</button>
+        <button class="btn ghost" id="sample">Fill sample</button>
+      </div>
+    </section>
+
+    <section class="card pad">
+      <h2>Your profile</h2>
+      <div id="score" class="note" style="margin-bottom:12px"></div>
+      <div id="out"></div>
+      <div class="chips" style="margin-top:12px">
+        <button class="chip" data-tab="pitch" aria-pressed="true">Pitches</button>
+        <button class="chip" data-tab="intro" aria-pressed="false">Warm intro</button>
+        <button class="chip" data-tab="json" aria-pressed="false">Agent JSON</button>
+      </div>
+      <pre id="pane" style="margin-top:10px"></pre>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="copy">Copy</button>
+        <button class="btn ghost sm" id="dl">Download</button>
+      </div>
+    </section>
+  </div>
+
+  <footer><span>Answers stay in this tab unless you copy or download them.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+
+  var Q = [
+    ["name", "Name", "Alex Morgan"],
+    ["role", "Role you want next", "Product designer"],
+    ["years", "Years of experience", "6"],
+    ["done", "What you have done (one line)", "Design systems for a 40-person fintech"],
+    ["great", "What you are unusually good at", "Turning messy internal tools into flows people stop complaining about"],
+    ["proof", "One result with a number in it", "Cut onboarding drop-off from 38% to 19% in two releases"],
+    ["next", "What you want next", "Design lead at a seed-stage company with real users"],
+    ["stage", "Company stage / setup", "Seed to Series A, remote-friendly, team of 10-40"],
+    ["no", "Dealbreakers", "No pure agency work, no 5-day office week"],
+    ["tone", "How you want to sound", "Direct, low-jargon, a bit dry"]
+  ];
+
+  var PRIV = ["Current employer", "Compensation", "Job-search status", "Exact location", "Portfolio links"];
+
+  var SAMPLE = {
+    name: "Alex Morgan", role: "Product designer", years: "6",
+    done: "Design systems for a 40-person fintech",
+    great: "Turning messy internal tools into flows people stop complaining about",
+    proof: "Cut onboarding drop-off from 38% to 19% in two releases",
+    next: "Design lead at a seed-stage company with real users",
+    stage: "Seed to Series A, remote-friendly, team of 10-40",
+    no: "No pure agency work, no 5-day office week",
+    tone: "Direct, low-jargon, a bit dry"
+  };
+
+  var v = T.store.get("career.v", {}) || {};
+  var priv = T.store.get("career.priv", ["Current employer", "Compensation"]);
+
+  T.$("#form").innerHTML = Q.map(function (q) {
+    var val = v[q[0]] || "";
+    return '<div><label class="f" for="q-' + q[0] + '">' + T.esc(q[1]) + '</label>' +
+      (q[0] === "great" || q[0] === "no"
+        ? '<textarea id="q-' + q[0] + '" style="min-height:64px" placeholder="' + T.esc(q[2]) + '">' + T.esc(val) + '</textarea>'
+        : '<input type="text" id="q-' + q[0] + '" value="' + T.esc(val) + '" placeholder="' + T.esc(q[2]) + '">') + '</div>';
+  }).join("");
+
+  T.$("#privacy").innerHTML = PRIV.map(function (p) {
+    return '<button class="chip" data-p="' + T.esc(p) + '" aria-pressed="' + (priv.indexOf(p) > -1) + '">' + T.esc(p) + '</button>';
+  }).join("");
+
+  T.$$("#privacy .chip").forEach(function (c) {
+    c.addEventListener("click", function () {
+      var on = c.getAttribute("aria-pressed") === "true";
+      c.setAttribute("aria-pressed", String(!on));
+      priv = T.$$("#privacy .chip").filter(function (x) { return x.getAttribute("aria-pressed") === "true"; }).map(function (x) { return x.dataset.p; });
+      T.store.set("career.priv", priv);
+    });
+  });
+
+  function read() {
+    var o = {};
+    Q.forEach(function (q) { o[q[0]] = (T.$("#q-" + q[0]).value || "").trim(); });
+    v = o; T.store.set("career.v", v); return o;
+  }
+
+  var tab = "pitch", built = null;
+
+  function build() {
+    var d = read();
+    var filled = Q.filter(function (q) { return d[q[0]]; }).length;
+    var years = d.years || "several";
+    var oneLine = d.role + " with " + years + " years in " + (d.done || "the field").toLowerCase().replace(/\.$/, "") + ". " + (d.next ? "Next: " + d.next + "." : "");
+    var twoLine = oneLine + "\n" + (d.great ? "Best at: " + d.great + ". " : "") + (d.proof ? "Proof: " + d.proof + "." : "");
+    var thirty = [
+      "I'm " + (d.name || "…") + ", a " + (d.role || "…") + " with " + years + " years of experience.",
+      d.done ? "Most recently I worked on " + d.done + "." : "",
+      d.great ? "What I'm actually good at is " + d.great + "." : "",
+      d.proof ? "The clearest evidence: " + d.proof + "." : "",
+      d.next ? "What I want next is " + d.next + "." : "",
+      d.stage ? "The setup that fits me is " + d.stage + "." : "",
+      priv.length ? "What I keep private: " + priv.join(", ").toLowerCase() + "." : ""
+    ].filter(Boolean).join(" ") + (d.tone ? " — " + d.tone + "." : "");
+
+    var json = {
+      schema: "career-context/1",
+      updated: new Date().toISOString().slice(0, 10),
+      identity: { name: d.name || null, headline: oneLine },
+      experience: d.done || null,
+      strengths: d.great ? d.great.split(/[,;]/).map(function (s) { return s.trim(); }).filter(Boolean) : [],
+      proof: d.proof ? [d.proof] : [],
+      goals: { next_role: d.next || null, stage: d.stage || null, dealbreakers: d.no ? d.no.split(/[,;]/).map(function (s) { return s.trim(); }).filter(Boolean) : [] },
+      tone: d.tone || null,
+      privacy: { redact: priv, note: "Do not surface redacted fields to third parties." },
+      pitches: { one_line: oneLine, two_line: twoLine, thirty_seconds: thirty }
+    };
+
+    var intro =
+      "Subject: " + (d.role || "Design") + " — quick intro\n\n" +
+      "Hi [name],\n\n" +
+      "[Who introduced us] suggested I reach out. " + oneLine + "\n\n" +
+      (d.proof ? "One thing that might be relevant to you: " + d.proof + ".\n\n" : "") +
+      "I'm not fishing for a role that doesn't exist. If " + (d.next ? d.next.replace(/^./, function (c) { return c.toLowerCase(); }) : "this kind of work") + " is on your roadmap this year, I'd like 20 minutes to compare notes — and if it isn't, a pointer to who is hiring for it would be just as useful.\n\n" +
+      "Best,\n" + (d.name || "[your name]") + "\n" +
+      "[portfolio / profile link]";
+
+    built = { oneLine: oneLine, twoLine: twoLine, thirty: thirty, json: json, intro: intro, filled: filled, d: d };
+    render();
+  }
+
+  function current() {
+    if (!built) return "";
+    if (tab === "pitch") return "ONE LINE\n" + built.oneLine + "\n\nTWO LINES\n" + built.twoLine + "\n\nTHIRTY SECONDS\n" + built.thirty;
+    if (tab === "intro") return built.intro;
+    return JSON.stringify(built.json, null, 2);
+  }
+
+  function render() {
+    if (!built) { T.$("#out").innerHTML = '<p class="note">Answer the ten questions, then hit Build profile.</p>'; T.$("#pane").textContent = ""; return; }
+    T.$("#score").innerHTML = built.filled + "/10 answered · privacy: " + (priv.length ? T.esc(priv.join(", ")) : "nothing redacted") + " · export: pitches, email, JSON";
+    T.$("#out").innerHTML =
+      '<div class="kpis"><div class="kpi"><span>headline</span><b style="font-size:13px;font-weight:500">' + T.esc(built.d.role || "—") + '</b></div>' +
+      '<div class="kpi"><span>years</span><b>' + T.esc(built.d.years || "—") + '</b></div>' +
+      '<div class="kpi"><span>strengths listed</span><b>' + built.json.strengths.length + '</b></div>' +
+      '<div class="kpi"><span>redacted</span><b>' + priv.length + '</b></div></div>';
+    T.$("#pane").textContent = current();
+  }
+
+  T.$$(".chip[data-tab]").forEach(function (c) {
+    c.addEventListener("click", function () {
+      T.$$(".chip[data-tab]").forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
+      c.setAttribute("aria-pressed", "true"); tab = c.dataset.tab; render();
+    });
+  });
+
+  T.$("#build").addEventListener("click", build);
+  T.$("#sample").addEventListener("click", function () {
+    Q.forEach(function (q) { T.$("#q-" + q[0]).value = SAMPLE[q[0]] || ""; });
+    build();
+  });
+  T.$("#copy").addEventListener("click", function (e) { T.copy(current(), e.currentTarget); });
+  T.$("#dl").addEventListener("click", function () {
+    var ext = tab === "json" ? ".json" : ".md";
+    T.download("career-" + tab + ext, current(), tab === "json" ? "application/json" : "text/markdown");
+  });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Career Story Builder");
+
+  if (v.name) build();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Application Kit — keyword gap, cover letter and screening answers from one JD</title>
+<meta name="description" content="Paste a job description and your resume. Get the keyword gap, where to put each missing term, a cover letter and draft screening answers. Track applications locally.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#a78bfa}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>05 · benchmark: Tsenta (tsenta.com)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Application Kit</h1>
+    <p>Tsenta's pitch is that it applies for you, tailored, the moment a role appears. The tailoring is the part worth copying: read the JD, find the gap, write the letter that closes it.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>Inputs</h2>
+      <div class="split">
+        <div><label class="f" for="company">Company</label><input type="text" id="company" placeholder="Stripe"></div>
+        <div><label class="f" for="role">Role</label><input type="text" id="role" placeholder="Product Designer"></div>
+      </div>
+      <label class="f" for="jd" style="margin-top:10px">Job description</label>
+      <textarea id="jd" spellcheck="false" style="min-height:150px"></textarea>
+      <label class="f" for="resume" style="margin-top:10px">Your resume (plain text)</label>
+      <textarea id="resume" spellcheck="false" style="min-height:120px"></textarea>
+      <div class="split" style="margin-top:10px">
+        <div><label class="f" for="salary">Salary target</label><input type="text" id="salary" placeholder="£75–85k"></div>
+        <div><label class="f" for="notice">Notice period</label><input type="text" id="notice" placeholder="1 month"></div>
+      </div>
+      <div style="margin-top:10px"><label class="f" for="right">Right to work</label><select id="right">
+        <option value="yes">Yes, no sponsorship needed</option>
+        <option value="no">Need sponsorship</option>
+        <option value="unsure">Depends on the country</option>
+      </select></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="run">Analyse</button>
+        <button class="btn ghost" id="sample">Load sample</button>
+      </div>
+    </section>
+
+    <section class="card pad">
+      <h2>Output</h2>
+      <div id="kpis" class="kpis"></div>
+      <div class="chips" style="margin:12px 0 10px">
+        <button class="chip" data-tab="gap" aria-pressed="true">Gap</button>
+        <button class="chip" data-tab="letter" aria-pressed="false">Cover letter</button>
+        <button class="chip" data-tab="answers" aria-pressed="false">Answers</button>
+        <button class="chip" data-tab="tracker" aria-pressed="false">Tracker</button>
+      </div>
+      <div id="pane"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="copy">Copy</button>
+        <button class="btn ghost sm" id="addApp">Add to tracker</button>
+      </div>
+    </section>
+  </div>
+
+  <footer><span>Rule-based matching. It counts what the JD repeats and what your resume actually contains — no model, no guessing at your experience.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+
+  var SKILLS = ("react typescript javascript python sql figma design systems user research prototyping a/b testing roadmapping stakeholder management agile scrum jira ci/cd docker kubernetes aws gcp azure node java go rust swift kotlin excel financial modeling valuation dcf forecasting budgeting gaap ifrs seo sem crm salesforce hubspot content marketing email marketing analytics tableau power bi looker etl airflow spark machine learning nlp llm pytorch tensorflow pandas numpy git rest api graphql microservices testing unit tests accessibility wcag localization onboarding retention churn kpi okr pricing go-to-market b2b saas enterprise sales customer success product management roadmap backlog discovery ux ui wireframes usability testing interaction design motion design brand typography illustration after effects blender unity unreal game design data visualization d3 react native flutter firebase supabase postgres mongodb redis kafka terraform linux security oauth encryption").split(" ");
+
+  var STOP = ("a an the and or but if then than that this these those to of in on at for with from by as is are was were be been being it its you your we our they their he she his her i me my not no so such can could should would will may might must have has had do does did more most other some any all each both few many much very own same too only just also into over under about across after before between during through during up down out off again further once here there when where why how what which who whom whose").split(" ");
+
+  var SAMPLE_JD = [
+    "Stripe — Product Designer, Payments",
+    "",
+    "We are looking for a product designer to own the end-to-end experience of our merchant onboarding.",
+    "Requirements:",
+    "- 5+ years of product design experience in B2B SaaS",
+    "- Strong systems thinking; you have built or maintained a design system",
+    "- Experience with user research, usability testing and rapid prototyping in Figma",
+    "- Comfortable working with engineers on technical constraints and API-driven products",
+    "- Track record of improving activation and retention metrics",
+    "Nice to have: accessibility (WCAG), data visualization, experience with payments or fintech."
+  ].join("\n");
+
+  var SAMPLE_RESUME = [
+    "Alex Morgan — Product Designer, 6 years",
+    "",
+    "Fintech, 40-person company. Owned onboarding and account settings.",
+    "- Rebuilt the onboarding flow in Figma; ran 14 usability sessions and cut drop-off from 38% to 19%",
+    "- Maintained a 60-component design system used by 4 product teams",
+    "- Partnered with 3 engineers on API-driven states and error handling",
+    "- Ran quarterly research sprints with 20+ customers",
+    "Tools: Figma, prototyping, basic SQL, Amplitude analytics."
+  ].join("\n");
+
+  var STOPW = {};
+  STOP.forEach(function (w) { STOPW[w] = 1; });
+
+  function tokens(text) {
+    return (text.toLowerCase().match(/[a-z][a-z+#./-]{1,24}/g) || []).map(function (w) {
+      return w.replace(/[./-]+$/, "");
+    }).filter(function (w) { return w.length > 2 && !STOPW[w]; });
+  }
+
+  function keywordStats(jd) {
+    var low = jd.toLowerCase();
+    var stats = {};
+    SKILLS.forEach(function (s) {
+      var re = new RegExp("\\b" + s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "g");
+      var n = (low.match(re) || []).length;
+      if (n) stats[s] = { kw: s, n: n, weight: n * 3 };
+    });
+    var t = tokens(jd), freq = {};
+    t.forEach(function (w) { freq[w] = (freq[w] || 0) + 1; });
+    Object.keys(freq).forEach(function (w) {
+      if (freq[w] >= 3 && !stats[w] && w.length > 3) stats[w] = { kw: w, n: freq[w], weight: freq[w] };
+    });
+    return Object.keys(stats).map(function (k) { return stats[k]; }).sort(function (a, b) { return b.weight - a.weight || a.kw.localeCompare(b.kw); });
+  }
+
+  function covered(kw, resumeLow) {
+    var k = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp("\\b" + k + "\\b").test(resumeLow)) return true;
+    var parts = kw.split(" ");
+    return parts.length > 1 && parts.every(function (p) { return resumeLow.indexOf(p) > -1; });
+  }
+
+  var state = { gap: [], cov: 0, total: 0, letter: "", answers: "", track: T.store.get("apply.track", []) };
+  var tab = "gap";
+
+  function analyse() {
+    var jd = T.$("#jd").value, resume = T.$("#resume").value;
+    var st = keywordStats(jd);
+    var resumeLow = resume.toLowerCase();
+    var totalW = 0, covW = 0;
+    state.gap = st.slice(0, 26).map(function (s) {
+      var ok = covered(s.kw, resumeLow);
+      totalW += s.weight; if (ok) covW += s.weight;
+      return { kw: s.kw, n: s.n, ok: ok };
+    });
+    state.total = totalW; state.cov = totalW ? covW / totalW : 0;
+
+    var company = T.$("#company").value.trim() || "[company]";
+    var role = T.$("#role").value.trim() || "[role]";
+    var salary = T.$("#salary").value.trim() || "the range for this level";
+    var notice = T.$("#notice").value.trim() || "one month";
+    var right = T.$("#right").value;
+    var missing = state.gap.filter(function (g) { return !g.ok; }).slice(0, 8).map(function (g) { return g.kw; });
+    var have = state.gap.filter(function (g) { return g.ok; }).slice(0, 6).map(function (g) { return g.kw; });
+
+    state.letter =
+      "Dear " + (company === "[company]" ? "Hiring Manager" : company + " hiring team") + ",\n\n" +
+      "I'm applying for the " + role + " role. The short version: I've spent the last few years on " + (have.slice(0, 3).join(", ") || "this exact kind of work") + ", and the parts of your description I'd be doing first are the ones I've already shipped.\n\n" +
+      "Two specifics:\n" +
+      "- " + (resume.split(/\n/).filter(function (l) { return /^[-•]/.test(l.trim()); })[0] || "Add one bullet with a number in it here.").replace(/^[-•]\s*/, "") + "\n" +
+      "- " + (resume.split(/\n/).filter(function (l) { return /^[-•]/.test(l.trim()); })[1] || "Add a second bullet with a number in it here.").replace(/^[-•]\s*/, "") + "\n\n" +
+      (missing.length ? "Where I'd need a ramp-up: " + missing.slice(0, 3).join(", ") + ". I'd rather say that now than discover it in month two.\n\n" : "") +
+      "I'd like 20 minutes to talk about what the first 90 days look like.\n\n" +
+      "Best,\n[your name]";
+
+    var rightLine = right === "yes" ? "I have the right to work here — no sponsorship needed." : right === "no" ? "I would need sponsorship, and I'd rather flag that before we both invest time." : "My right to work depends on the country; happy to confirm before the first call.";
+
+    state.answers =
+      "1. Why this role?\n" +
+      "Because the work is " + (have.slice(0, 3).join(", ") || "the work I already do") + " — and " + company + " is doing it at a scale where the details matter. I'm not looking for a title change; I'm looking for this problem.\n\n" +
+      "2. Salary expectations?\n" +
+      "I'm targeting " + salary + ". I'd rather align on the band for the level early than negotiate twice.\n\n" +
+      "3. Notice period?\n" + notice + ".\n\n" +
+      "4. Right to work?\n" + rightLine + "\n\n" +
+      "5. Why should we hire you?\n" +
+      "Because I can show the before and after, not just describe it. " + (resume.split(/\n/).filter(function (l) { return /^[-•]/.test(l.trim()); })[0] || "").replace(/^[-•]\s*/, "") + ".\n\n" +
+      "6. What's your weakness?\n" +
+      "I over-invest in the first version of a system and under-invest in documenting it. The fix I use now: write the README before the second component.\n\n" +
+      "7. Questions for us?\n" +
+      "What does success look like at 90 days, and who decides that it happened?";
+
+    render();
+  }
+
+  function render() {
+    T.$("#kpis").innerHTML =
+      '<div class="kpi ' + (state.cov > .55 ? "good" : state.cov > .35 ? "warn" : "bad") + '"><span>keyword match</span><b>' + Math.round(state.cov * 100) + '%</b></div>' +
+      '<div class="kpi"><span>covered</span><b>' + state.gap.filter(function (g) { return g.ok; }).length + "/" + state.gap.length + '</b></div>' +
+      '<div class="kpi bad"><span>missing</span><b>' + state.gap.filter(function (g) { return !g.ok; }).length + '</b></div>' +
+      '<div class="kpi"><span>tracked</span><b>' + state.track.length + '</b></div>';
+
+    var pane = T.$("#pane");
+    if (tab === "gap") {
+      if (!state.gap.length) { pane.innerHTML = '<p class="note">Paste a JD and hit Analyse.</p>'; return; }
+      pane.innerHTML = '<table><thead><tr><th>Keyword</th><th class="num">JD</th><th>Resume</th><th>Where to put it</th></tr></thead><tbody>' +
+        state.gap.map(function (g) {
+          var where = g.ok ? "—" : (/design|system|api|figma|sql|react/i.test(g.kw) ? "Skills + one bullet" : "Summary sentence");
+          return '<tr><td>' + T.esc(g.kw) + '</td><td class="num">' + g.n + '</td><td>' + (g.ok ? '<span class="pill ok">yes</span>' : '<span class="pill bad">no</span>') + '</td><td class="note">' + where + '</td></tr>';
+        }).join("") + '</tbody></table>' +
+        '<p class="note" style="margin-top:10px">Do not stuff keywords. Each missing term needs one sentence that is true, or it does more harm than good.</p>';
+    } else if (tab === "letter") {
+      pane.innerHTML = '<pre>' + T.esc(state.letter) + '</pre>';
+    } else if (tab === "answers") {
+      pane.innerHTML = '<pre>' + T.esc(state.answers) + '</pre>';
+    } else {
+      pane.innerHTML = state.track.length
+        ? '<table><thead><tr><th>Company</th><th>Role</th><th>Date</th><th>Status</th><th></th></tr></thead><tbody>' +
+          state.track.map(function (r, i) {
+            return '<tr><td>' + T.esc(r.company) + '</td><td>' + T.esc(r.role) + '</td><td class="note">' + T.esc(r.date) + '</td><td><select data-i="' + i + '" style="padding:4px 8px;font-size:12px">' +
+              ["Applied", "Screen", "Interview", "Offer", "Rejected"].map(function (s) { return '<option' + (r.status === s ? " selected" : "") + '>' + s + '</option>'; }).join("") +
+              '</select></td><td><button class="btn ghost sm" data-del="' + i + '">✕</button></td></tr>';
+          }).join("") + '</tbody></table>'
+        : '<p class="note">Nothing tracked yet. Analyse a JD, then hit "Add to tracker".</p>';
+      T.$$("#pane select").forEach(function (s) {
+        s.addEventListener("change", function () { state.track[+s.dataset.i].status = s.value; T.store.set("apply.track", state.track); render(); });
+      });
+      T.$$("#pane [data-del]").forEach(function (b) {
+        b.addEventListener("click", function () { state.track.splice(+b.dataset.del, 1); T.store.set("apply.track", state.track); render(); });
+      });
+    }
+  }
+
+  function currentText() {
+    if (tab === "gap") return state.gap.map(function (g) { return (g.ok ? "[x] " : "[ ] ") + g.kw + " (JD x" + g.n + ")"; }).join("\n");
+    if (tab === "letter") return state.letter;
+    if (tab === "answers") return state.answers;
+    return state.track.map(function (r) { return [r.company, r.role, r.date, r.status].join(" | "); }).join("\n");
+  }
+
+  T.$("#run").addEventListener("click", analyse);
+  T.$("#sample").addEventListener("click", function () {
+    T.$("#company").value = "Stripe"; T.$("#role").value = "Product Designer, Payments";
+    T.$("#jd").value = SAMPLE_JD; T.$("#resume").value = SAMPLE_RESUME;
+    T.$("#salary").value = "£80–90k"; T.$("#notice").value = "1 month";
+    analyse();
+  });
+  T.$$(".chip[data-tab]").forEach(function (c) {
+    c.addEventListener("click", function () {
+      T.$$(".chip[data-tab]").forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
+      c.setAttribute("aria-pressed", "true"); tab = c.dataset.tab; render();
+    });
+  });
+  T.$("#copy").addEventListener("click", function (e) { T.copy(currentText(), e.currentTarget); });
+  T.$("#addApp").addEventListener("click", function () {
+    var company = T.$("#company").value.trim() || "Untitled";
+    var role = T.$("#role").value.trim() || "—";
+    if (state.track.some(function (r) { return r.company === company && r.role === role; })) { T.toast("Already tracked"); return; }
+    state.track.unshift({ company: company, role: role, date: new Date().toISOString().slice(0, 10), status: "Applied", score: Math.round(state.cov * 100) });
+    T.store.set("apply.track", state.track); tab = "tracker"; render(); T.toast("Added");
+  });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Application Kit");
+
+  T.$$(".chip[data-tab]").forEach(function (x) { if (x.dataset.tab === "tracker" && state.track.length) x.setAttribute("aria-pressed", "false"); });
+  render();
+})();
+</script>
+</body>
+</html>

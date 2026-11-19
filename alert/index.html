@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alert Forge — plain English in, Pine Script alerts out</title>
+<meta name="description" content="Turn 'tell me when it breaks out on volume' into a Pine Script v5 alert block, a plain-English rule, and a confluence score that says whether it is one idea or three.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#fbbf24}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>09 · benchmark: Instinct (instinct.xyz)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Alert Forge</h1>
+    <p>Instinct watches everything and pings you when news, socials and charts line up. The line-up is the hard part: this turns your conditions into a real Pine Script alert — and tells you when they are secretly the same condition.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>Conditions</h2>
+      <div class="split">
+        <div><label class="f" for="ticker">Ticker</label><input type="text" id="ticker" value="SMH"></div>
+        <div><label class="f" for="tf">Chart timeframe</label><select id="tf"><option>1m</option><option>5m</option><option selected>15m</option><option>1h</option><option>4h</option><option>1D</option></select></div>
+      </div>
+      <div id="rows" style="margin-top:12px" class="stack"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="add">+ condition</button>
+        <button class="btn ghost sm" id="preset">Load preset</button>
+      </div>
+      <p class="note" style="margin-top:10px">Generated code targets TradingView Pine v5. Paste it in the Pine editor, save, then add an alert on the indicator.</p>
+    </section>
+
+    <section class="card pad">
+      <h2>Output</h2>
+      <div class="kpis" id="kpis"></div>
+      <div class="hr"></div>
+      <h3 style="margin-bottom:6px">Plain English</h3>
+      <p id="plain" class="note" style="margin-bottom:12px"></p>
+      <h3 style="margin-bottom:6px">Pine Script v5</h3>
+      <pre id="pine" style="max-height:300px"></pre>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="copyPine">Copy Pine</button>
+        <button class="btn ghost sm" id="copyRule">Copy rule</button>
+      </div>
+      <div class="hr"></div>
+      <div id="advice"></div>
+    </section>
+  </div>
+
+  <footer><span>Alerts fire on bar close by default. A condition that fires every bar is not a signal, it is a subscription.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+
+  var TYPES = {
+    cross: { label: "Price crosses level", cat: "price", fields: ["level", "dir"] },
+    breakout: { label: "Breaks N-day high/low", cat: "price", fields: ["n", "dir2"] },
+    volume: { label: "Volume vs 20-bar average", cat: "volume", fields: ["mult"] },
+    rsi: { label: "RSI(14) threshold", cat: "momentum", fields: ["rsi", "dir3"] },
+    ma: { label: "Price vs SMA", cat: "trend", fields: ["len", "dir4"] },
+    move: { label: "Move % over N bars", cat: "volatility", fields: ["pct", "bars"] },
+    gap: { label: "Gap from prior close", cat: "volatility", fields: ["gap"] }
+  };
+  var CAT = { price: "price", volume: "volume", momentum: "momentum", trend: "trend", volatility: "volatility" };
+
+  var rows = [
+    { t: "breakout", n: 55, dir2: "up" },
+    { t: "volume", mult: 2 },
+    { t: "rsi", rsi: 55, dir3: "above" }
+  ];
+
+  function dirSel(id, val, opts) {
+    return '<select data-k="' + id + '" style="width:100%">' + opts.map(function (o) {
+      return '<option value="' + o[0] + '"' + (val === o[0] ? " selected" : "") + '>' + o[1] + '</option>';
+    }).join("") + '</select>';
+  }
+  function num(k, v, step) { return '<input type="number" data-k="' + k + '" value="' + v + '" step="' + (step || 1) + '">'; }
+
+  function fields(r, i) {
+    var f = TYPES[r.t].fields, out = [];
+    f.forEach(function (k) {
+      if (k === "level") out.push(num(k, r.level != null ? r.level : 250, 0.01));
+      if (k === "dir") out.push(dirSel(k, r.dir || "up", [["up", "above"], ["down", "below"]]));
+      if (k === "n") out.push(num(k, r.n != null ? r.n : 55));
+      if (k === "dir2") out.push(dirSel(k, r.dir2 || "up", [["up", "high"], ["down", "low"]]));
+      if (k === "mult") out.push(num(k, r.mult != null ? r.mult : 2, 0.1));
+      if (k === "rsi") out.push(num(k, r.rsi != null ? r.rsi : 55));
+      if (k === "dir3") out.push(dirSel(k, r.dir3 || "above", [["above", "above"], ["below", "below"]]));
+      if (k === "len") out.push(num(k, r.len != null ? r.len : 50));
+      if (k === "dir4") out.push(dirSel(k, r.dir4 || "above", [["above", "above"], ["below", "below"]]));
+      if (k === "pct") out.push(num(k, r.pct != null ? r.pct : 3, 0.1));
+      if (k === "bars") out.push(num(k, r.bars != null ? r.bars : 3));
+      if (k === "gap") out.push(num(k, r.gap != null ? r.gap : 1, 0.1));
+    });
+    return out.join("");
+  }
+
+  function drawRows() {
+    T.$("#rows").innerHTML = rows.map(function (r, i) {
+      return '<div class="check" style="align-items:center;gap:8px"><span style="font:600 11px var(--mono);color:var(--tx3)">C' + (i + 1) + '</span>' +
+        '<select data-i="' + i + '" data-k="t" style="flex:1.3">' + Object.keys(TYPES).map(function (k) {
+          return '<option value="' + k + '"' + (r.t === k ? " selected" : "") + '>' + TYPES[k].label + '</option>';
+        }).join("") + '</select>' +
+        '<span style="display:flex;gap:6px;flex:1;align-items:center">' + fields(r, i) + '</span>' +
+        '<button class="btn ghost sm" data-del="' + i + '">✕</button></div>';
+    }).join("");
+
+    T.$$("#rows [data-i]").forEach(function (el) {
+      el.addEventListener("change", function () {
+        var i = +el.dataset.i, k = el.dataset.k;
+        var v = el.value;
+        if (el.tagName === "SELECT") rows[i][k] = v;
+        else rows[i][k] = +v;
+        if (k === "t") { rows[i] = { t: v }; }
+        drawRows(); build();
+      });
+    });
+    T.$$("#rows [data-del]").forEach(function (b) {
+      b.addEventListener("click", function () { rows.splice(+b.dataset.del, 1); drawRows(); build(); });
+    });
+  }
+
+  function cond(r, i) {
+    var n = "c" + (i + 1);
+    switch (r.t) {
+      case "cross": return { id: n, code: "ta." + ((r.dir || "up") === "up" ? "crossover" : "crossunder") + "(close, " + (r.level != null ? r.level : 250) + ")", text: "price crosses " + ((r.dir || "up") === "up" ? "above " : "below ") + (r.level != null ? r.level : 250), cat: "price" };
+      case "breakout": return { id: n, code: (r.dir2 || "up") === "up" ? "close > ta.highest(close, " + (r.n || 55) + ")[1]" : "close < ta.lowest(close, " + (r.n || 55) + ")[1]", text: (r.n || 55) + "-day " + ((r.dir2 || "up") === "up" ? "high break" : "low break"), cat: "price" };
+      case "volume": return { id: n, code: "volume > ta.sma(volume, 20) * " + (r.mult || 2), text: "volume above " + (r.mult || 2) + "× its 20-bar average", cat: "volume" };
+      case "rsi": return { id: n, code: "ta.rsi(close, 14) " + ((r.dir3 || "above") === "above" ? ">" : "<") + " " + (r.rsi || 55), text: "RSI(14) " + ((r.dir3 || "above") === "above" ? "above " : "below ") + (r.rsi || 55), cat: "momentum" };
+      case "ma": return { id: n, code: "close " + ((r.dir4 || "above") === "above" ? ">" : "<") + " ta.sma(close, " + (r.len || 50) + ")", text: "price " + ((r.dir4 || "above") === "above" ? "above" : "below") + " the " + (r.len || 50) + "-bar SMA", cat: "trend" };
+      case "move": return { id: n, code: "(close / close[" + (r.bars || 3) + "] - 1) * 100 " + ((r.pct || 3) > 0 ? "> " : "< ") + Math.abs(r.pct || 3), text: "moves " + Math.abs(r.pct || 3) + "% over " + (r.bars || 3) + " bars", cat: "volatility" };
+      case "gap": return { id: n, code: "(open / close[1] - 1) * 100 " + ((r.gap || 1) > 0 ? "> " : "< ") + Math.abs(r.gap || 1), text: "gaps " + Math.abs(r.gap || 1) + "% from the prior close", cat: "volatility" };
+    }
+    return { id: n, code: "true", text: "always", cat: "other" };
+  }
+
+  function build() {
+    var ticker = (T.$("#ticker").value || "TICKER").toUpperCase();
+    var tf = T.$("#tf").value;
+    var cs = rows.map(cond);
+    var join = cs.length ? cs.map(function (c) { return c.id; }).join(" and ") : "true";
+
+    var pine = "//@version=5\nindicator(\"" + ticker + " — alert forge\", overlay=true)\n\n" +
+      cs.map(function (c) { return c.id + " = " + c.code; }).join("\n") + "\n\n" +
+      "fire = " + join + "\n\n" +
+      "alertcondition(fire, title=\"" + ticker + " setup\", message=\"" + ticker + " {{ticker}} {{interval}} — " + cs.length + " conditions met at {{close}}\")\n" +
+      "bgcolor(fire ? color.new(color.yellow, 88) : na)\n" +
+      "plotshape(fire, style=shape.triangledown, location=location.abovebar, color=color.yellow, size=size.tiny)";
+
+    var plain = "Ping me on " + ticker + " (" + tf + ") when " + (cs.length ? cs.map(function (c) { return c.text; }).join(" AND ") : "anything happens") + " — on bar close, not intrabar.";
+
+    var cats = {};
+    cs.forEach(function (c) { cats[c.cat] = 1; });
+    var diversity = Object.keys(cats).length;
+    var dupe = cs.filter(function (c) { return c.cat === "price"; }).length;
+    var score = Math.min(5, diversity + (cs.length >= 3 ? 1 : 0));
+
+    T.$("#kpis").innerHTML =
+      '<div class="kpi ' + (score >= 4 ? "good" : score >= 3 ? "warn" : "bad") + '"><span>confluence</span><b>' + score + '/5</b></div>' +
+      '<div class="kpi"><span>conditions</span><b>' + cs.length + '</b></div>' +
+      '<div class="kpi"><span>independent types</span><b>' + diversity + '</b></div>' +
+      '<div class="kpi"><span>checklist</span><b>' + (cs.length ? cs.length + " armed" : "—") + '</b></div>';
+
+    T.$("#plain").textContent = plain;
+    T.$("#pine").textContent = pine;
+
+    var adv = [];
+    if (dupe >= 2) adv.push(["warn", dupe + " of these are price conditions. A breakout and a moving average above are often the same fact wearing two hats — the alert will feel more confirmed than it is."]);
+    if (diversity >= 4) adv.push(["ok", "Four or more independent types: price, volume, momentum, trend or volatility. That is a real filter, not a dressed-up trendline."]);
+    if (rows.some(function (r) { return r.t === "rsi" || r.t === "move"; })) adv.push(["ok", "Momentum/volatility conditions cut the noise on 1m and 5m charts. Keep them if you trade intraday."]);
+    if (rows.length > 4) adv.push(["warn", "More than four conditions and you will get two alerts a year. That is not a strategy, it is a lottery ticket."]);
+    if (!rows.length) adv.push(["bad", "No conditions — the alert fires every bar."]);
+    adv.push(["ok", "After it fires: check the higher timeframe, size from the stop, and write the invalidation before entering."]);
+
+    T.$("#advice").innerHTML = '<h3 style="margin-bottom:8px">Read before you arm it</h3>' + adv.map(function (a) {
+      return '<div class="check" style="margin-bottom:6px"><span class="pill ' + a[0] + '">' + a[0] + '</span><span style="flex:1">' + T.esc(a[1]) + '</span></div>';
+    }).join("");
+  }
+
+  T.$("#add").addEventListener("click", function () { rows.push({ t: "cross", level: 250, dir: "up" }); drawRows(); build(); });
+  T.$("#preset").addEventListener("click", function () {
+    rows = [{ t: "breakout", n: 55, dir2: "up" }, { t: "volume", mult: 2.5 }, { t: "rsi", rsi: 60, dir3: "above" }, { t: "move", pct: 3, bars: 5 }];
+    drawRows(); build();
+  });
+  T.$("#ticker").addEventListener("input", T.debounce(build, 300));
+  T.$("#tf").addEventListener("change", build);
+  T.$("#copyPine").addEventListener("click", function (e) { T.copy(T.$("#pine").textContent, e.currentTarget); });
+  T.$("#copyRule").addEventListener("click", function (e) { T.copy(T.$("#plain").textContent, e.currentTarget); });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Alert Forge");
+
+  drawRows();
+  build();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inbox → Actions — turn a chat thread into tasks, replies and a brief</title>
+<meta name="description" content="Paste a messy message thread and get a task list with due dates, the questions that still need an answer, draft replies and a tomorrow brief. Runs locally.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#6ea8ff}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>01 · benchmark: Caddy (caddy.app)</span>
+    <span class="sp"></span>
+    <a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Inbox → Actions</h1>
+    <p>Caddy lives in your texts and turns a stream of messages into what you actually have to do. This is the part you can run yourself: paste the thread, get tasks with dates, the questions still hanging, and replies you can send.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>Thread</h2>
+      <textarea id="src" spellcheck="false" style="min-height:200px" placeholder="Paste messages, one per line. Speaker prefixes like 'Jess: ' are fine."></textarea>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="run">Extract</button>
+        <button class="btn ghost" id="sample">Load sample</button>
+        <button class="btn ghost" id="clear">Clear</button>
+      </div>
+      <p class="note" style="margin-top:10px">Nothing leaves this page. Parsing is local: verbs, dates, question marks and who said it.</p>
+    </section>
+
+    <section class="card pad">
+      <h2>What needs you</h2>
+      <div class="kpis" id="kpis">
+        <div class="kpi"><span>tasks</span><b id="kTasks">0</b></div>
+        <div class="kpi warn"><span>due today</span><b id="kToday">0</b></div>
+        <div class="kpi bad"><span>open questions</span><b id="kQ">0</b></div>
+        <div class="kpi"><span>commitments</span><b id="kC">0</b></div>
+      </div>
+      <div class="chips" style="margin:14px 0 10px">
+        <button class="chip" data-tab="tasks" aria-pressed="true">Tasks</button>
+        <button class="chip" data-tab="replies" aria-pressed="false">Replies</button>
+        <button class="chip" data-tab="brief" aria-pressed="false">Tomorrow brief</button>
+        <button class="chip" data-tab="md" aria-pressed="false">Markdown</button>
+      </div>
+      <div id="pane"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn ghost sm" id="copy">Copy</button>
+        <button class="btn ghost sm" id="dl">Download .md</button>
+      </div>
+    </section>
+  </div>
+
+  <footer><span>Local-only parser. It will miss sarcasm, and it will not book anything for you.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+  var SAMPLE = [
+    "Jess: Can you take Bailey to his vet appointment tomorrow? It's at 4:15.",
+    "Sam: Heads up, the marketing brief is still on my plate — I'll finish it by Friday.",
+    "Jess: Also we need to pay the venue deposit before the 21st or we lose the date.",
+    "Priya: Did you get the contract from legal? I didn't see it.",
+    "Sam: Not yet. I'll chase them today.",
+    "Jess: Don't forget date night on Thursday 😄",
+    "Priya: Should we move the standup to 9:30 next week?",
+    "Sam: FYI the client call got moved to Monday 11am.",
+    "Jess: Can you send over the updated deck tonight?",
+    "Priya: I'll review the numbers after 5pm and drop notes in the doc."
+  ].join("\n");
+
+  var MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+  var DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var NOW = new Date();
+
+  function fmtDate(d) {
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  }
+  function atHour(h) { var d = new Date(NOW); d.setHours(h, 0, 0, 0); return d; }
+
+  function dueOf(line) {
+    var m, d = new Date(NOW);
+    if (/\btonight\b/i.test(line)) return { date: atHour(20), label: "tonight" };
+    if (/\btoday\b/i.test(line)) return { date: atHour(18), label: "today" };
+    if (/\btomorrow\b/i.test(line)) { d.setDate(d.getDate() + 1); return { date: d, label: "tomorrow" }; }
+    if (/\bnext week\b/i.test(line)) { d.setDate(d.getDate() + 7); return { date: d, label: "next week" }; }
+    if (/\b(eod|end of day)\b/i.test(line)) return { date: atHour(18), label: "end of day" };
+    if (/\b(eow|end of week)\b/i.test(line)) { d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7)); return { date: d, label: "end of week" }; }
+    if (/\bthe 21st\b/i.test(line)) { var dd = new Date(NOW.getFullYear(), NOW.getMonth(), 21); return { date: dd, label: "the 21st" }; }
+    m = line.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/i);
+    if (m) { var mo = MONTHS[m[1].slice(0, 3).toLowerCase()], dy = +m[2]; var y = NOW.getFullYear(); var x = new Date(y, mo, dy); if (x < NOW) x.setFullYear(y + 1); return { date: x, label: fmtDate(x) }; }
+    m = line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+    if (m) { var mm = +m[1] - 1, dn = +m[2]; var yy = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : NOW.getFullYear(); var z = new Date(yy, mm, dn); return { date: z, label: fmtDate(z) }; }
+    m = line.match(/\b(?:by|before|on|until)\s+(mon|tues|wednes|thurs|fri|satur|sun)day\b/i);
+    if (!m) m = line.match(/\b(mon|tues|wednes|thurs|fri|satur|sun)day\b/i);
+    if (m) {
+      var key = m[1].toLowerCase(); var target = { mon: 1, tues: 2, wednes: 3, thurs: 4, fri: 5, satur: 6, sun: 0 }[key];
+      var delta = (target - NOW.getDay() + 7) % 7; if (delta === 0) delta = 7;
+      var nd = new Date(NOW); nd.setDate(nd.getDate() + delta); return { date: nd, label: fmtDate(nd) };
+    }
+    m = line.match(/\bin\s+(\d+)\s+(hour|day|week)s?\b/i);
+    if (m) { var nd2 = new Date(NOW); var n = +m[1]; if (m[2] === "hour") nd2.setHours(nd2.getHours() + n); else if (m[2] === "day") nd2.setDate(nd2.getDate() + n); else nd2.setDate(nd2.getDate() + n * 7); return { date: nd2, label: "in " + n + " " + m[2] + (n > 1 ? "s" : "") }; }
+    return null;
+  }
+
+  var ACTION = /\b(send|email|book|pay|submit|review|update|finish|fix|schedule|prepare|renew|cancel|order|file|draft|reply|confirm|sign|share|check|ask|buy|collect|upload|print|take|drop|chase|move|call|write|clean|plan)\b/i;
+  var QUESTION = /(\?|^(can|could|would|will|are|do|did|should|what|when|where|who|which|how)\b|\b(can|could|would) you\b)/i;
+  var FYI = /\b(fyi|heads up|reminder|don't forget|do not forget|note that|just so you know|for your info)\b/i;
+  var PROMISE = /\b(i'll|i will|we'll|we will|going to|gonna|on it|will do)\b/i;
+
+  function clean(line) {
+    return line.replace(/^\s*[-*•]\s*/, "").replace(/^\s*\[\s?\]\s*/, "")
+      .replace(/^[A-Z][a-z]{1,12}:\s*/, "")
+      .replace(/^(heads up|fyi|not yet|also)[,:.]?\s+/i, "")
+      .replace(/\s+/g, " ").trim();
+  }
+  function speakerOf(line) {
+    var m = line.match(/^([A-Z][a-z]{1,12}):\s*/);
+    return m ? m[1] : "";
+  }
+  function ownerOf(line) {
+    if (/^(can|could|would) you\b|^please\b/i.test(line)) return "you";
+    if (/\b(i'll|i will|we'll|we will)\b/i.test(line)) return /^we/i.test(line) ? "team" : "me";
+    if (/^(we|let's)\b/i.test(line)) return "team";
+    return "unassigned";
+  }
+
+  var data = { tasks: [], questions: [], promises: [], fyi: [], lines: 0 };
+  var tab = "tasks";
+
+  function parse(text) {
+    var lines = text.split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
+    var out = { tasks: [], questions: [], promises: [], fyi: [], lines: lines.length };
+    lines.forEach(function (raw) {
+      var body = clean(raw);
+      if (!body) return;
+      var who = speakerOf(raw);
+      var due = dueOf(body);
+      if (/\?$/.test(body) || (QUESTION.test(body) && /\b(you|we|they)\b/i.test(body))) {
+        out.questions.push({ text: body, who: who, due: due });
+        return;
+      }
+      if (FYI.test(body)) { out.fyi.push({ text: body, who: who }); }
+      if (PROMISE.test(body)) { out.promises.push({ text: body, who: who, due: due, owner: ownerOf(body) }); }
+      if (ACTION.test(body) || due) {
+        out.tasks.push({ text: body.replace(/^also\s+/i, ""), who: who, due: due, owner: ownerOf(body), raw: raw });
+      }
+    });
+    var seen = {};
+    out.tasks = out.tasks.filter(function (t) { var k = t.text.toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; });
+    return out;
+  }
+
+  function dueCell(t) {
+    if (!t.due) return '<span class="pill">no date</span>';
+    var days = Math.round((t.due.date - new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate())) / 86400000);
+    var cls = days <= 0 ? "bad" : days <= 2 ? "warn" : "";
+    return '<span class="pill ' + cls + '">' + T.esc(t.due.label) + '</span>';
+  }
+
+  function render() {
+    T.$("#kTasks").textContent = data.tasks.length;
+    T.$("#kToday").textContent = data.tasks.filter(function (t) { return t.due && t.due.date.toDateString() === NOW.toDateString(); }).length;
+    T.$("#kQ").textContent = data.questions.length;
+    T.$("#kC").textContent = data.promises.length;
+
+    var pane = T.$("#pane");
+    if (tab === "tasks") {
+      if (!data.tasks.length) { pane.innerHTML = '<p class="note">Nothing parsed yet. Paste a thread and hit Extract.</p>'; return; }
+      pane.innerHTML = '<table><thead><tr><th>Task</th><th>Owner</th><th>Due</th><th>From</th></tr></thead><tbody>' +
+        data.tasks.map(function (t) {
+          return '<tr><td>' + T.esc(t.text) + '</td><td><span class="pill">' + t.owner + '</span></td><td>' + dueCell(t) + '</td><td class="note">' + T.esc(t.who || "—") + '</td></tr>';
+        }).join("") + '</tbody></table>';
+    } else if (tab === "replies") {
+      if (!data.questions.length) { pane.innerHTML = '<p class="note">No open questions found.</p>'; return; }
+      pane.innerHTML = data.questions.map(function (q, i) {
+        var d = q.due ? q.due.label : "end of day";
+        var body = /^(can|could|would)\b/i.test(q.text)
+          ? "Yes — I can take that. I'll confirm the details by " + d + "."
+          : /^(when|what time|which)\b/i.test(q.text)
+            ? "I'm aiming for " + d + ". Does that work on your side? Once you confirm I'll lock it in."
+            : "Short answer: yes. I'll send the specifics by " + d + ".";
+        return '<div style="margin-bottom:12px"><div class="note" style="margin-bottom:6px">↳ ' + T.esc(q.text) + '</div><pre style="max-height:none">' + T.esc(body) + '</pre></div>';
+      }).join("");
+    } else if (tab === "brief") {
+      var today = data.tasks.filter(function (t) { return t.due && t.due.date <= atHour(23) && t.due.date >= new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate()); });
+      var later = data.tasks.filter(function (t) { return !t.due || t.due.date > atHour(23); });
+      function row(t) { return '<li>' + T.esc(t.text) + (t.due ? ' <span class="pill ' + (t.due.date <= atHour(23) ? "bad" : "warn") + '">' + T.esc(t.due.label) + '</span>' : '') + '</li>'; }
+      pane.innerHTML =
+        '<h3 style="margin-bottom:8px">Due now</h3><ul style="padding-left:18px;color:var(--tx2);font-size:13px">' + (today.map(row).join("") || "<li>Nothing dated today.</li>") + '</ul>' +
+        '<div class="hr"></div><h3 style="margin-bottom:8px">Waiting on you</h3><ul style="padding-left:18px;color:var(--tx2);font-size:13px">' + (later.map(row).join("") || "<li>Clear.</li>") + '</ul>' +
+        (data.questions.length ? '<div class="hr"></div><h3 style="margin-bottom:8px">Answer these</h3><ul style="padding-left:18px;color:var(--tx2);font-size:13px">' + data.questions.map(function (q) { return "<li>" + T.esc(q.text) + "</li>"; }).join("") + '</ul>' : "");
+    } else {
+      pane.innerHTML = '<pre>' + T.esc(markdown()) + '</pre>';
+    }
+  }
+
+  function markdown() {
+    var out = ["# Actions — " + fmtDate(NOW), ""];
+    out.push("## Tasks");
+    if (!data.tasks.length) out.push("_none_");
+    data.tasks.forEach(function (t) { out.push("- [ ] " + t.text + (t.due ? " — due " + t.due.label : "") + (t.owner !== "unassigned" ? " (owner: " + t.owner + ")" : "")); });
+    out.push("", "## Open questions");
+    if (!data.questions.length) out.push("_none_");
+    data.questions.forEach(function (q) { out.push("- " + q.text); });
+    out.push("", "## Commitments");
+    if (!data.promises.length) out.push("_none_");
+    data.promises.forEach(function (p) { out.push("- " + p.text + " → " + p.owner); });
+    out.push("", "## FYI");
+    if (!data.fyi.length) out.push("_none_");
+    data.fyi.forEach(function (f) { out.push("- " + f.text); });
+    return out.join("\n");
+  }
+
+  function run() {
+    data = parse(T.$("#src").value);
+    render();
+    T.toast(data.tasks.length + " tasks · " + data.questions.length + " questions");
+  }
+
+  T.$("#run").addEventListener("click", run);
+  T.$("#sample").addEventListener("click", function () { T.$("#src").value = SAMPLE; run(); });
+  T.$("#clear").addEventListener("click", function () { T.$("#src").value = ""; data = { tasks: [], questions: [], promises: [], fyi: [], lines: 0 }; render(); });
+  T.$$(".chip[data-tab]").forEach(function (c) {
+    c.addEventListener("click", function () {
+      T.$$(".chip[data-tab]").forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
+      c.setAttribute("aria-pressed", "true"); tab = c.dataset.tab; render();
+    });
+  });
+  T.$("#copy").addEventListener("click", function (e) { T.copy(tab === "md" ? markdown() : T.$("#pane").innerText, e.currentTarget); });
+  T.$("#dl").addEventListener("click", function () { T.download("actions-" + new Date().toISOString().slice(0, 10) + ".md", markdown(), "text/markdown"); });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Inbox → Actions");
+
+  T.$("#src").addEventListener("input", T.debounce(run, 450));
+  T.$("#src").value = SAMPLE;
+  run();
+})();
+</script>
+</body>
+</html>

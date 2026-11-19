@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Backtest Lab — test a rule on real daily closes before you risk money</title>
+<meta name="description" content="Paste daily prices, pick SMA cross, RSI reversion or breakout, and get equity curve, CAGR, max drawdown, win rate and buy-and-hold comparison. Runs locally.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#34d399}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>06 · benchmark: Scalar Field (scalarfield.io)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Backtest Lab</h1>
+    <p>Scalar Field's whole pitch is "describe it, backtest it, then run it live". This is the middle step, offline: one rule, one price series, honest numbers — including the drawdown nobody puts in the screenshot.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>Data</h2>
+      <textarea id="csv" spellcheck="false" style="min-height:150px;font-size:11.5px" placeholder="date,close&#10;2024-01-02,101.4"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="sample">Load 500 days</button>
+        <button class="btn ghost sm" id="clear">Clear</button>
+        <span class="note">date,close or full OHLCV</span>
+      </div>
+
+      <h2 style="margin-top:18px">Rule</h2>
+      <div class="stack">
+        <div><label class="f" for="strat">Strategy</label><select id="strat">
+          <option value="sma">SMA cross — long when fast &gt; slow</option>
+          <option value="rsi">RSI reversion — buy oversold, exit at midline</option>
+          <option value="brk">Breakout — long on N-day high</option>
+        </select></div>
+        <div class="split" id="p-sma">
+          <div><label class="f" for="fast">Fast SMA</label><input type="number" id="fast" value="20" min="2" max="200"></div>
+          <div><label class="f" for="slow">Slow SMA</label><input type="number" id="slow" value="50" min="3" max="400"></div>
+        </div>
+        <div class="split" id="p-rsi" style="display:none">
+          <div><label class="f" for="rsiP">RSI period</label><input type="number" id="rsiP" value="14" min="2" max="50"></div>
+          <div><label class="f" for="rsiL">Buy below / exit above</label><div class="split"><input type="number" id="rsiL" value="30" min="5" max="45"><input type="number" id="rsiX" value="55" min="45" max="95"></div></div>
+        </div>
+        <div id="p-brk" style="display:none"><label class="f" for="brkN">Breakout lookback (days)</label><input type="number" id="brkN" value="55" min="5" max="250"></div>
+        <div class="split">
+          <div><label class="f" for="cap">Starting capital</label><input type="number" id="cap" value="10000" min="100" step="100"></div>
+          <div><label class="f" for="fee">Cost per switch (bps)</label><input type="number" id="fee" value="5" min="0" max="100"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn" id="run">Run backtest</button></div>
+    </section>
+
+    <section class="card pad">
+      <h2>Result</h2>
+      <div id="kpis" class="kpis"></div>
+      <canvas id="chart" width="900" height="320" style="margin-top:12px"></canvas>
+      <div class="note" id="legend" style="margin-top:6px"></div>
+      <div class="hr"></div>
+      <div id="trades"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="copy">Copy report</button>
+        <button class="btn ghost sm" id="dl">Download .md</button>
+      </div>
+    </section>
+  </div>
+
+  <footer><span>Close-to-close, one position, no slippage model beyond the per-switch cost. Usually flattering — treat the number as an upper bound.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+  var last = null;
+
+  function synth() {
+    var rows = ["date,close"], d = new Date(2024, 0, 2), p = 100, i = 0;
+    while (i < 500) {
+      if (d.getDay() !== 0 && d.getDay() !== 6) {
+        var cyc = 1 + 0.075 * Math.sin(i / 37) + 0.025 * Math.sin(i / 11);
+        var noise = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 0.004 - 0.002;
+        p = 100 * (1 + 0.0011 * i) * cyc * (1 + noise);
+        rows.push(d.toISOString().slice(0, 10) + "," + p.toFixed(2));
+        i++;
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return rows.join("\n");
+  }
+
+  function parse(text) {
+    var rows = T.csv(text);
+    if (!rows.length) return [];
+    var head = rows[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var ci = head.indexOf("close"), di = head.indexOf("date");
+    var hasHead = ci > -1 || head.some(function (h) { return /^[a-z]+$/.test(h) && h !== "date"; });
+    var start = hasHead ? 1 : 0;
+    if (ci < 0) ci = head.length >= 5 ? 4 : 1;
+    if (di < 0) di = 0;
+    var out = [];
+    for (var i = start; i < rows.length; i++) {
+      var r = rows[i];
+      var c = parseFloat(String(r[ci]).replace(/[^0-9.\-]/g, ""));
+      var d = new Date(String(r[di]).trim());
+      if (isFinite(c) && !isNaN(d)) out.push({ d: d, c: c });
+    }
+    return out;
+  }
+
+  function sma(a, n, i) {
+    if (i < n - 1) return null;
+    var s = 0; for (var k = i - n + 1; k <= i; k++) s += a[k];
+    return s / n;
+  }
+
+  function rsiArr(a, n) {
+    var out = new Array(a.length).fill(null), gain = 0, loss = 0;
+    for (var i = 1; i < a.length; i++) {
+      var ch = a[i] - a[i - 1];
+      var g = Math.max(0, ch), l = Math.max(0, -ch);
+      if (i <= n) { gain += g; loss += l; if (i === n) { gain /= n; loss /= n; out[i] = 100 - 100 / (1 + gain / (loss || 1e-9)); } }
+      else { gain = (gain * (n - 1) + g) / n; loss = (loss * (n - 1) + l) / n; out[i] = 100 - 100 / (1 + gain / (loss || 1e-9)); }
+    }
+    return out;
+  }
+
+  function signals(closes, strat, p) {
+    var n = closes.length, sig = new Array(n).fill(0);
+    if (strat === "sma") {
+      for (var i = 0; i < n; i++) {
+        var f = sma(closes, p.fast, i), s = sma(closes, p.slow, i);
+        if (f != null && s != null) sig[i] = f > s ? 1 : 0;
+      }
+    } else if (strat === "rsi") {
+      var r = rsiArr(closes, p.rsiP), pos = 0;
+      for (var j = 0; j < n; j++) {
+        if (r[j] == null) { sig[j] = 0; continue; }
+        if (!pos && r[j] < p.rsiL) pos = 1;
+        else if (pos && r[j] > p.rsiX) pos = 0;
+        sig[j] = pos;
+      }
+    } else {
+      var hi = -Infinity, pos2 = 0;
+      for (var k = 0; k < n; k++) {
+        if (k >= p.brkN) {
+          var mx = -Infinity;
+          for (var m = k - p.brkN; m < k; m++) mx = Math.max(mx, closes[m]);
+          if (!pos2 && closes[k] > mx) pos2 = 1;
+        }
+        sig[k] = pos2;
+        if (pos2) { var lo = -Infinity; for (var q = Math.max(0, k - 20); q < k; q++) lo = Math.max(lo, closes[q]); if (k > 0 && closes[k] < lo) pos2 = 0; }
+      }
+    }
+    return sig;
+  }
+
+  function runCalc(rows, strat, p, cap, feeBps) {
+    var closes = rows.map(function (r) { return r.c; });
+    var sig = signals(closes, strat, p);
+    var eq = [cap], bench = [cap], pos = 0, cost = feeBps / 10000;
+    var trades = [], entry = null, peak = cap, mdd = 0;
+
+    for (var i = 1; i < closes.length; i++) {
+      var ret = closes[i] / closes[i - 1] - 1;
+      var prev = pos;
+      pos = sig[i];
+      var pnl = prev ? ret : 0;
+      var e = eq[i - 1] * (1 + pnl);
+      if (pos !== prev) {
+        e *= (1 - cost);
+        if (pos === 1) entry = { i: i, px: closes[i], eq: e };
+        else if (entry) { trades.push({ in: entry, out: { i: i, px: closes[i] }, ret: closes[i] / entry.px - 1 - cost * 2 }); entry = null; }
+      }
+      eq.push(e);
+      bench.push(bench[i - 1] * (1 + ret));
+      peak = Math.max(peak, e); mdd = Math.max(mdd, 1 - e / peak);
+    }
+    if (entry) trades.push({ in: entry, out: { i: closes.length - 1, px: closes[closes.length - 1] }, ret: closes[closes.length - 1] / entry.px - 1 - cost * 2, open: true });
+
+    var days = Math.max(1, (rows[rows.length - 1].d - rows[0].d) / 86400000);
+    var wins = trades.filter(function (t) { return t.ret > 0; });
+    var totalRet = eq[eq.length - 1] / cap - 1;
+    var cagr = Math.pow(eq[eq.length - 1] / cap, 365 / days) - 1;
+    var exposure = sig.reduce(function (a, b) { return a + b; }, 0) / sig.length;
+    return { eq: eq, bench: bench, trades: trades, totalRet: totalRet, cagr: cagr, mdd: mdd, win: trades.length ? wins.length / trades.length : 0,
+      avgWin: wins.length ? wins.reduce(function (a, t) { return a + t.ret; }, 0) / wins.length : 0,
+      exposure: exposure, days: days, bh: bench[bench.length - 1] / cap - 1, rows: rows, strat: strat, p: p };
+  }
+
+  function draw(r) {
+    var cv = T.$("#chart"), ctx = cv.getContext("2d");
+    var W = cv.width, H = cv.height, pad = 34;
+    ctx.clearRect(0, 0, W, H);
+    var all = r.eq.concat(r.bench);
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+    var span = hi - lo || 1;
+    var X = function (i) { return pad + i / (r.eq.length - 1) * (W - pad - 10); };
+    var Y = function (v) { return H - pad - (v - lo) / span * (H - pad - 12); };
+
+    ctx.strokeStyle = "rgba(255,255,255,.08)"; ctx.lineWidth = 1;
+    for (var g = 0; g <= 4; g++) { var y = 12 + g * (H - pad - 12) / 4; ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - 10, y); ctx.stroke(); }
+    ctx.fillStyle = "#6f7688"; ctx.font = "11px ui-monospace,Consolas,monospace";
+    ctx.fillText(T.num(hi, 0), 4, 18); ctx.fillText(T.num(lo, 0), 4, H - pad + 4);
+
+    function line(arr, color, w) {
+      ctx.beginPath(); ctx.lineWidth = w; ctx.strokeStyle = color;
+      arr.forEach(function (v, i) { i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)); });
+      ctx.stroke();
+    }
+    line(r.bench, "rgba(154,163,184,.55)", 1.4);
+    line(r.eq, "#34d399", 2);
+  }
+
+  function specText(r) {
+    var rule = r.strat === "sma" ? "SMA(" + r.p.fast + ") crosses above SMA(" + r.p.slow + ")"
+      : r.strat === "rsi" ? "RSI(" + r.p.rsiP + ") below " + r.p.rsiL + ", exit above " + r.p.rsiX
+      : r.p.brkN + "-day high breakout";
+    return [
+      "# Backtest — " + rule,
+      "",
+      "- Period: " + r.rows[0].d.toISOString().slice(0, 10) + " → " + r.rows[r.rows.length - 1].d.toISOString().slice(0, 10) + " (" + Math.round(r.days) + " days)",
+      "- Bars: " + r.rows.length,
+      "- Total return: " + T.pct(r.totalRet),
+      "- CAGR: " + T.pct(r.cagr),
+      "- Max drawdown: " + T.pct(-r.mdd),
+      "- Trades: " + r.trades.length + " · win rate " + T.pct(r.win, 0),
+      "- Avg win: " + T.pct(r.avgWin) + " · exposure " + T.pct(r.exposure, 0),
+      "- Buy & hold: " + T.pct(r.bh),
+      "",
+      "Rule: long only, close-to-close, one position, cost on every switch.",
+      "Read: the edge is the gap to buy-and-hold, not the headline return."
+    ].join("\n");
+  }
+
+  function render(r) {
+    last = r;
+    var winCls = r.totalRet > 0 ? "good" : "bad";
+    T.$("#kpis").innerHTML =
+      '<div class="kpi ' + winCls + '"><span>total return</span><b>' + T.pct(r.totalRet) + '</b></div>' +
+      '<div class="kpi"><span>CAGR</span><b>' + T.pct(r.cagr) + '</b></div>' +
+      '<div class="kpi bad"><span>max drawdown</span><b>' + T.pct(-r.mdd) + '</b></div>' +
+      '<div class="kpi"><span>win rate</span><b>' + T.pct(r.win, 0) + '</b></div>' +
+      '<div class="kpi"><span>trades</span><b>' + r.trades.length + '</b></div>' +
+      '<div class="kpi"><span>vs buy &amp; hold</span><b>' + T.pct(r.bh) + '</b></div>';
+    T.$("#legend").innerHTML = '<span style="color:#34d399">■</span> strategy &nbsp; <span style="color:#9aa3b8">■</span> buy &amp; hold &nbsp; · exposure ' + T.pct(r.exposure, 0) + ' of the time in the market';
+    draw(r);
+
+    var rows = r.trades.slice(-8).reverse();
+    T.$("#trades").innerHTML = r.trades.length
+      ? '<table><thead><tr><th>#</th><th>Entry</th><th>Exit</th><th class="num">Px in</th><th class="num">Px out</th><th class="num">Return</th></tr></thead><tbody>' +
+        rows.map(function (t) {
+          return '<tr><td class="note">' + (r.trades.indexOf(t) + 1) + '</td><td class="note">' + t.in.i + '</td><td class="note">' + t.out.i + (t.open ? " (open)" : "") + '</td><td class="num">' + T.num(t.in.px, 2) + '</td><td class="num">' + T.num(t.out.px, 2) + '</td><td class="num"><span class="pill ' + (t.ret > 0 ? "ok" : "bad") + '">' + T.pct(t.ret) + '</span></td></tr>';
+        }).join("") + '</tbody></table><p class="note" style="margin-top:8px">Last 8 trades, bar index instead of date to keep the table readable.</p>'
+      : '<p class="note">No trades — the rule never triggered on this data.</p>';
+  }
+
+  function run() {
+    var rows = parse(T.$("#csv").value);
+    if (rows.length < 30) { T.toast("Need at least 30 valid rows"); return; }
+    var strat = T.$("#strat").value;
+    var p = { fast: +T.$("#fast").value || 20, slow: +T.$("#slow").value || 50, rsiP: +T.$("#rsiP").value || 14, rsiL: +T.$("#rsiL").value || 30, rsiX: +T.$("#rsiX").value || 55, brkN: +T.$("#brkN").value || 55 };
+    if (strat === "sma" && p.fast >= p.slow) { T.toast("Fast must be below slow"); return; }
+    render(runCalc(rows, strat, p, +T.$("#cap").value || 10000, +T.$("#fee").value || 0));
+  }
+
+  T.$("#strat").addEventListener("change", function () {
+    var v = this.value;
+    T.$("#p-sma").style.display = v === "sma" ? "" : "none";
+    T.$("#p-rsi").style.display = v === "rsi" ? "" : "none";
+    T.$("#p-brk").style.display = v === "brk" ? "" : "none";
+    run();
+  });
+  ["fast", "slow", "rsiP", "rsiL", "rsiX", "brkN", "cap", "fee"].forEach(function (id) {
+    T.$("#" + id).addEventListener("change", run);
+  });
+  T.$("#run").addEventListener("click", run);
+  T.$("#sample").addEventListener("click", function () { T.$("#csv").value = synth(); run(); });
+  T.$("#clear").addEventListener("click", function () { T.$("#csv").value = ""; });
+  T.$("#copy").addEventListener("click", function (e) { if (last) T.copy(specText(last), e.currentTarget); });
+  T.$("#dl").addEventListener("click", function () { if (last) T.download("backtest.md", specText(last), "text/markdown"); });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Backtest Lab");
+
+  T.$("#csv").value = synth();
+  run();
+})();
+</script>
+</body>
+</html>

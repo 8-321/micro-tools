@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%23121624%27/%3E%3Crect x=%2714%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%236ea8ff%27/%3E%3Crect x=%2734%27 y=%2714%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23e2624a%27/%3E%3Crect x=%2714%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%234fd1b5%27/%3E%3Crect x=%2734%27 y=%2734%27 width=%2716%27 height=%2716%27 rx=%275%27 fill=%27%23d8a35a%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio X-Ray — concentration, drift and the exact rebalance trades</title>
+<meta name="description" content="Paste holdings and targets. Get allocation, concentration warnings, contribution to today's move, and the share counts to rebalance. Exports CSV.">
+<link rel="stylesheet" href="../assets/base.css">
+<style>:root{--a:#60a5fa}#table{overflow-x:auto}#table table{min-width:620px}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← all tools</a>
+    <span class="tag"><i></i>07 · benchmark: Volaren (volaren.ai)</span>
+    <span class="sp"></span><a id="mail" href="#" rel="nofollow">email</a>
+  </div>
+
+  <header class="hd">
+    <h1>Portfolio X-Ray</h1>
+    <p>Volaren opens with "Tesla is now 10% of your portfolio, trim to 5%?". That question needs four numbers and no broker connection. Paste your positions, get the drift and the exact trades.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card pad">
+      <h2>Holdings</h2>
+      <p class="note" style="margin-bottom:8px">One line per position: <b>ticker, shares, price, cost, target %</b>. Target is optional — add it and you get rebalance trades.</p>
+      <textarea id="rows" spellcheck="false" style="min-height:190px;font-size:12px"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" id="sample">Load sample</button>
+        <button class="btn ghost sm" id="norm">Normalise targets</button>
+      </div>
+      <p class="note" style="margin-top:10px">Prices are whatever you paste. This never calls a quote API — that is the point.</p>
+    </section>
+
+    <section class="card pad">
+      <h2>X-ray</h2>
+      <div id="kpis" class="kpis"></div>
+      <div class="hr"></div>
+      <div id="table"></div>
+      <div class="hr"></div>
+      <div id="warn"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn ghost sm" id="copy">Copy trades</button>
+        <button class="btn ghost sm" id="dl">Export CSV</button>
+      </div>
+    </section>
+  </div>
+
+  <footer><span>Not advice. Target weights are yours; this only does the arithmetic.</span></footer>
+</div>
+<script src="../assets/base.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = window.T;
+
+  var SAMPLE = [
+    "NVDA, 40, 186.20, 92.10, 20, 2.4",
+    "MSFT, 25, 512.40, 388.00, 25, 0.8",
+    "VOO, 18, 561.30, 420.50, 35, 0.3",
+    "SHOP, 30, 108.75, 141.20, 10, -1.9",
+    "CASH, 4200, 1, 1, 10, 0"
+  ].join("\n");
+
+  function parse() {
+    var out = [];
+    T.$("#rows").value.split(/\n/).forEach(function (l) {
+      if (!l.trim()) return;
+      var p = l.split(/[,\t]/).map(function (s) { return s.trim(); });
+      var ticker = (p[0] || "").toUpperCase();
+      if (!ticker) return;
+      out.push({
+        ticker: ticker,
+        shares: +p[1] || 0,
+        price: +p[2] || 0,
+        cost: p[3] === "" || p[3] == null ? null : +p[3],
+        target: p[4] === "" || p[4] == null ? null : +p[4],
+        day: p[5] === "" || p[5] == null ? 0 : +p[5]
+      });
+    });
+    return out;
+  }
+
+  function calc(rows) {
+    var total = rows.reduce(function (a, r) { return a + r.shares * r.price; }, 0);
+    rows.forEach(function (r) {
+      r.value = r.shares * r.price;
+      r.weight = total ? r.value / total : 0;
+      r.pl = r.cost == null ? null : (r.price - r.cost) * r.shares;
+      r.plPct = r.cost ? r.price / r.cost - 1 : null;
+      r.drift = r.target == null ? null : r.weight - r.target / 100;
+      r.trade = (r.target == null || !r.price || r.ticker === "CASH") ? null : (r.target / 100 * total - r.value) / r.price;
+      r.move = total ? (r.day / 100 * r.value) / total : 0;
+    });
+    return { total: total, rows: rows,
+      dayPl: rows.reduce(function (a, r) { return a + r.day / 100 * r.value; }, 0),
+      dayPct: rows.reduce(function (a, r) { return a + r.day / 100 * r.value; }, 0) / (total || 1),
+      pl: rows.reduce(function (a, r) { return a + (r.pl || 0); }, 0) };
+  }
+
+  function render() {
+    var rows = parse();
+    if (!rows.length) { T.$("#kpis").innerHTML = ""; T.$("#table").innerHTML = '<p class="note">Paste holdings to see the x-ray.</p>'; T.$("#warn").innerHTML = ""; return; }
+    var d = calc(rows), total = d.total;
+
+    T.$("#kpis").innerHTML =
+      '<div class="kpi"><span>value</span><b>' + T.money(total) + '</b></div>' +
+      '<div class="kpi ' + (d.dayPl >= 0 ? "good" : "bad") + '"><span>today</span><b>' + (rows.some(function(r){return r.day;}) ? (d.dayPl >= 0 ? "+" : "") + T.money(d.dayPl) : "—") + '</b><small class="note">' + (rows.some(function(r){return r.day;}) ? T.pct(d.dayPct) : "add a 6th column for day %") + '</small></div>' +
+      '<div class="kpi ' + (d.pl >= 0 ? "good" : "bad") + '"><span>unrealised</span><b>' + (d.pl >= 0 ? "+" : "") + T.money(d.pl) + '</b></div>' +
+      '<div class="kpi"><span>positions</span><b>' + rows.filter(function (r) { return r.ticker !== "CASH"; }).length + '</b></div>';
+
+    T.$("#table").innerHTML = '<table><thead><tr><th>Ticker</th><th class="num">Value</th><th class="num">Weight</th><th class="num">Target</th><th class="num">Drift</th><th class="num">Trade</th><th class="num">P/L</th></tr></thead><tbody>' +
+      rows.slice().sort(function (a, b) { return b.weight - a.weight; }).map(function (r) {
+        var driftCls = r.drift == null ? "" : Math.abs(r.drift) > .05 ? "bad" : Math.abs(r.drift) > .02 ? "warn" : "ok";
+        return '<tr><td><b>' + T.esc(r.ticker) + '</b></td><td class="num">' + T.money(r.value) + '</td><td class="num">' + T.pct(r.weight) + '</td>' +
+          '<td class="num">' + (r.target == null ? "—" : r.target + "%") + '</td>' +
+          '<td class="num">' + (r.drift == null ? "—" : '<span class="pill ' + driftCls + '">' + (r.drift > 0 ? "+" : "") + T.pct(r.drift) + '</span>') + '</td>' +
+          '<td class="num">' + (r.trade == null ? "—" : (Math.abs(r.trade) < .5 ? "hold" : (r.trade > 0 ? "buy " : "sell ") + Math.abs(Math.round(r.trade)) + " sh")) + '</td>' +
+          '<td class="num">' + (r.pl == null ? "—" : '<span class="pill ' + (r.pl >= 0 ? "ok" : "bad") + '">' + (r.pl >= 0 ? "+" : "") + T.money(r.pl) + '</span>') + '</td></tr>';
+      }).join("") + '</tbody></table>';
+
+    var w = [];
+    var top = rows.slice().sort(function (a, b) { return b.weight - a.weight; })[0];
+    if (top && top.weight > .25 && top.ticker !== "CASH") w.push(["bad", top.ticker + " is " + T.pct(top.weight) + " of the portfolio — a single name above 25% is a position, not a portfolio."]);
+    var top3 = rows.slice().sort(function (a, b) { return b.weight - a.weight; }).slice(0, 3).reduce(function (a, r) { return a + r.weight; }, 0);
+    if (top3 > .7 && rows.length > 3) w.push(["warn", "The top three names are " + T.pct(top3) + " of everything. Diversification is thinner than the line count suggests."]);
+    var cash = rows.filter(function (r) { return r.ticker === "CASH"; })[0];
+    if (cash && cash.weight < .03) w.push(["warn", "Cash is " + T.pct(cash.weight) + " — no room to add without selling."]);
+    if (!cash) w.push(["warn", "No cash line. Add one so the weights add up to reality."]);
+    var tsum = rows.reduce(function (a, r) { return a + (r.target || 0); }, 0);
+    if (tsum && Math.abs(tsum - 100) > .5) w.push(["bad", "Targets sum to " + T.num(tsum, 1) + "%, not 100%. Normalise before trading."]);
+    rows.forEach(function (r) {
+      if (r.plPct != null && r.plPct > .5 && r.weight > .1) w.push(["warn", r.ticker + " is up " + T.pct(r.plPct) + " and is " + T.pct(r.weight) + " of the book — trimming is also a tax decision."]);
+    });
+    if (!w.length) w.push(["ok", "No concentration or drift flags. That is rare — check the numbers are not stale."]);
+
+    T.$("#warn").innerHTML = '<h3 style="margin-bottom:8px">What the numbers say</h3>' + w.map(function (x) {
+      return '<div class="check" style="margin-bottom:6px"><span class="pill ' + x[0] + '">' + x[0] + '</span><span style="flex:1">' + T.esc(x[1]) + '</span></div>';
+    }).join("");
+  }
+
+  function tradesText() {
+    var rows = parse().filter(function (r) { return r.target != null; });
+    var total = rows.reduce(function (a, r) { return a + r.shares * r.price; }, 0);
+    return rows.filter(function (r) { return r.price; }).map(function (r) {
+      var delta = (r.target / 100 * total - r.shares * r.price) / r.price;
+      if (Math.abs(delta) < .5) return r.ticker + ": hold";
+      return r.ticker + ": " + (delta > 0 ? "buy " : "sell ") + Math.abs(Math.round(delta)) + " shares (~" + T.money(Math.abs(delta * r.price)) + ")";
+    }).join("\n");
+  }
+
+  function csvOut() {
+    var rows = parse(), total = rows.reduce(function (a, r) { return a + r.shares * r.price; }, 0);
+    var out = ["ticker,shares,price,cost,target_pct,value,weight_pct,drift_pct"];
+    rows.forEach(function (r) {
+      var v = r.shares * r.price, wt = total ? v / total * 100 : 0;
+      out.push([r.ticker, r.shares, r.price, r.cost == null ? "" : r.cost, r.target == null ? "" : r.target, v.toFixed(2), wt.toFixed(2), r.target == null ? "" : (wt - r.target).toFixed(2)].join(","));
+    });
+    return out.join("\n");
+  }
+
+  T.$("#rows").addEventListener("input", T.debounce(render, 250));
+  T.$("#sample").addEventListener("click", function () { T.$("#rows").value = SAMPLE; render(); });
+  T.$("#norm").addEventListener("click", function () {
+    var rows = parse(), sum = rows.reduce(function (a, r) { return a + (r.target || 0); }, 0);
+    if (!sum) { T.toast("No targets to normalise"); return; }
+    var lines = rows.map(function (r) { return [r.ticker, r.shares, r.price, r.cost == null ? "" : r.cost, r.target == null ? "" : (r.target / sum * 100).toFixed(1)].join(", "); });
+    T.$("#rows").value = lines.join("\n"); render(); T.toast("Targets normalised to 100%");
+  });
+  T.$("#copy").addEventListener("click", function (e) { T.copy(tradesText(), e.currentTarget); });
+  T.$("#dl").addEventListener("click", function () { T.download("portfolio-xray.csv", csvOut(), "text/csv"); });
+
+  var user = ["3413", "7657", "21"].join(""), host = ["qq", "com"].join(".");
+  T.$("#mail").href = "mailto:" + user + "@" + host + "?subject=" + encodeURIComponent("Portfolio X-Ray");
+
+  T.$("#rows").value = SAMPLE;
+  render();
+})();
+</script>
+</body>
+</html>
