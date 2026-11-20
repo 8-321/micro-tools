@@ -86,3 +86,9 @@ footer{margin-top:26px;color:var(--tx3);font-size:12px;display:flex;gap:14px;fle
 ::selection{background:rgba(110,168,255,.3)}
 :focus-visible{outline:2px solid var(--a);outline-offset:2px}
 @media print{body{background:#fff;color:#000}.top,.btn,footer{display:none}.card{box-shadow:none;background:#fff}}
+
+.buy{display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;
+  background:linear-gradient(135deg,#8fc0ff,#6ea8ff 45%,#4f7fe0);color:#0a0c11;font-weight:700;
+  font-size:12.5px;letter-spacing:-.01em;text-decoration:none;
+  box-shadow:0 6px 20px rgba(110,168,255,.28),inset 0 1px 0 rgba(255,255,255,.35);transition:transform .15s,box-shadow .15s}
+.buy:hover{text-decoration:none;transform:translateY(-1px);box-shadow:0 10px 26px rgba(110,168,255,.4),inset 0 1px 0 rgba(255,255,255,.4)}
